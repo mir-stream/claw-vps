@@ -1,0 +1,19 @@
+# firecracker@.service — one instance per VM (firecracker@<name>)
+# Enabled instances are restored automatically after a host reboot.
+[Unit]
+Description=Firecracker microVM %i
+After=vps-network.service
+Requires=vps-network.service
+
+[Service]
+ExecStartPre=/usr/bin/vm net-up %i
+ExecStart=/usr/sbin/firecracker --api-sock /run/vps/%i.sock --config-file /var/lib/vms/%i/config.json
+# Attempt a graceful shutdown (x86_64 only); falls through to SIGTERM on failure.
+ExecStop=/usr/bin/vm send-shutdown %i
+ExecStopPost=/usr/bin/vm net-down %i
+TimeoutStopSec=15
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

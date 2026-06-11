@@ -1,0 +1,13 @@
+# vps-network.service — restore br0 + NAT + isolation firewall at boot
+[Unit]
+Description=VPS bridge network (br0 + NAT + isolation firewall)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/vps-setup-network
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

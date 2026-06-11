@@ -1,0 +1,3 @@
+packaging/dist/
+*.bak
+.DS_Store
