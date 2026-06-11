@@ -94,15 +94,20 @@ sudo vm create bot1 --image openclaw --mem 2048
 ## Operations
 
 ```bash
-vm list                # NAME  IP           STATE    IMAGE     MEM
+vm list                # NAME IP STATE BOOT IMAGE CPU MEM
+vm status bot1         # detailed single-VM view + recent log tail
 vm images              # golden images + kernel, with timestamps
 sudo vm logs bot1      # serial console — first stop for boot failures
 sudo vm stop bot1
 sudo vm start bot1
+sudo vm restart bot1
 sudo vm destroy bot1   # re-type the name to confirm; --force skips it
 ```
 
-VMs are **pets** — upgrade in-place with `apt`, `npm`, etc. Host reboots auto-recover everything via systemd.
+VMs are **pets** — upgrade in-place with `apt`, `npm`, etc. The host supervisor owns
+the VM lifecycle: host reboots, guest reboots, and kernel panics all auto-recover via
+systemd. To take a VM down, use `sudo vm stop` on the host — that's the intended
+power-down path (an in-guest `poweroff` will auto-restart instead).
 
 ---
 

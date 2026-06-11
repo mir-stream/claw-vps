@@ -28,8 +28,10 @@ Images (Dockerfile-based; requires docker):
 
 VM lifecycle:
   vm create <name> [--image base] [--cpus 2] [--mem 1024] [--authkey-file <path>]
-  vm list                       all VMs: name, IP, state, image, memory
+  vm list                       all VMs: name, IP, state, boot, image, cpu, memory
   vm start <name> / vm stop <name>
+  vm restart <name>             restart a running VM (systemctl restart)
+  vm status <name>              detailed single-VM view (state, boot, PID, log tail)
   vm destroy <name> [--force]   delete a VM and its disk (asks for confirmation)
   vm logs <name>                follow the VM's serial console (journald)
   vm version / vm help
@@ -291,17 +293,19 @@ EOF
 }
 
 cmd_list() {
-  printf '%-12s %-14s %-10s %-10s %s\n' NAME IP STATE IMAGE MEM
-  local d name state ip image mem
+  printf '%-12s %-14s %-10s %-9s %-10s %-4s %s\n' NAME IP STATE BOOT IMAGE CPU MEM
+  local d name state boot ip image cpu mem
   for d in "${VMROOT}"/*/; do
     name="$(basename "$d")"
     [ "$name" = "images" ] && continue
     [ -f "${d}/config.json" ] || continue
     ip="$(cat "${d}/ip" 2>/dev/null || echo '?')"
     image="$(cat "${d}/image" 2>/dev/null || echo '?')"
+    cpu="$(sed -n 's/.*"vcpu_count": \([0-9]*\).*/\1/p' "${d}/config.json" 2>/dev/null || echo '?')"
     mem="$(sed -n 's/.*"mem_size_mib": \([0-9]*\).*/\1/p' "${d}/config.json" 2>/dev/null || echo '?')"
     state="$(systemctl is-active "firecracker@${name}.service" 2>/dev/null || true)"
-    printf '%-12s %-14s %-10s %-10s %s\n' "$name" "$ip" "$state" "$image" "${mem}MiB"
+    boot="$(systemctl is-enabled "firecracker@${name}.service" 2>/dev/null || true)"
+    printf '%-12s %-14s %-10s %-9s %-10s %-4s %s\n' "$name" "$ip" "$state" "${boot:-?}" "$image" "${cpu:-?}" "${mem}MiB"
   done
 }
 
@@ -317,8 +321,47 @@ cmd_version() { dpkg-query -W -f='claw-vps ${Version}\n' claw-vps 2>/dev/null ||
 
 _vm_exists() { [ -f "${VMROOT}/${1}/config.json" ] || die "no such VM: ${1}  (see: vm list)"; }
 
-cmd_start()   { need_root; _vm_exists "${1:?name required}"; systemctl enable --now "firecracker@${1}.service"; }
+cmd_start()   { need_root; _vm_exists "${1:?name required}"; systemctl reset-failed "firecracker@${1}.service" 2>/dev/null || true; systemctl enable --now "firecracker@${1}.service"; }
 cmd_stop()    { need_root; _vm_exists "${1:?name required}"; systemctl disable --now "firecracker@${1}.service"; }
+cmd_restart() { need_root; _vm_exists "${1:?name required}"; systemctl reset-failed "firecracker@${1}.service" 2>/dev/null || true; systemctl restart "firecracker@${1}.service"; }
+
+cmd_status() {
+  local name="${1:?name required}" dir="${VMROOT}/${1}"
+  _vm_exists "$name"
+  local ip image vcpus mem boot active sub pid since restarts
+  ip="$(cat "${dir}/ip" 2>/dev/null || echo '?')"
+  image="$(cat "${dir}/image" 2>/dev/null || echo '?')"
+  vcpus="$(sed -n 's/.*"vcpu_count": \([0-9]*\).*/\1/p' "${dir}/config.json" 2>/dev/null || echo '?')"
+  mem="$(sed -n 's/.*"mem_size_mib": \([0-9]*\).*/\1/p' "${dir}/config.json" 2>/dev/null || echo '?')"
+  boot="$(systemctl is-enabled "firecracker@${name}.service" 2>/dev/null || true)"
+  active="$(systemctl is-active "firecracker@${name}.service" 2>/dev/null || true)"
+  sub="$(systemctl show -p SubState --value "firecracker@${name}.service" 2>/dev/null || true)"
+  pid="$(systemctl show -p MainPID --value "firecracker@${name}.service" 2>/dev/null || true)"
+  since="$(systemctl show -p ActiveEnterTimestamp --value "firecracker@${name}.service" 2>/dev/null || true)"
+  restarts="$(systemctl show -p NRestarts --value "firecracker@${name}.service" 2>/dev/null || true)"
+  # a never-started VM has no runtime state: MainPID=0, timestamp empty — normalize.
+  [ "${pid:-}" = "0" ] && pid="-"
+  [ -z "${since:-}" ] && since="-"
+  [ -z "${restarts:-}" ] && restarts="0"
+  printf '%-12s %s\n' name "$name"
+  printf '%-12s %s\n' ip "$ip"
+  printf '%-12s %s\n' image "$image"
+  printf '%-12s %s\n' vcpus "${vcpus:-?}"
+  printf '%-12s %s\n' mem "${mem:-?}MiB"
+  printf '%-12s %s\n' boot "${boot:-?}"
+  printf '%-12s %s (%s)\n' state "${active:-?}" "${sub:-?}"
+  printf '%-12s %s\n' pid "${pid:-?}"
+  printf '%-12s %s\n' since "${since:-?}"
+  printf '%-12s %s\n' restarts "${restarts:-?}"
+  echo "recent log:"
+  # Same permission gate as cmd_logs, but non-fatal: still print the rest above.
+  if [ "$(id -u)" -ne 0 ] && ! id -nG | grep -qwE 'adm|systemd-journal'; then
+    echo "  (no permission to read the journal — try: sudo vm status ${name})"
+  else
+    journalctl -u "firecracker@${name}.service" --no-hostname -n 8 -o cat 2>/dev/null \
+      | sed 's/^/  /' || true
+  fi
+}
 
 cmd_logs() {
   local name="${1:?name required}"
@@ -363,7 +406,9 @@ cmd_net_down() { ip link del "tap-${1:?}" 2>/dev/null || true; rm -f "/run/vps/$
 cmd_send_shutdown() {
   local name="${1:?}" sock="/run/vps/${1:?}.sock"
   [ -S "$sock" ] || return 0
-  curl -s --unix-socket "$sock" -X PUT "http://localhost/actions" \
+  # -f makes curl fail on HTTP 400, so aarch64 (SendCtrlAltDel unsupported)
+  # short-circuits here instead of stalling 10s in the wait loop below.
+  curl -fs --unix-socket "$sock" -X PUT "http://localhost/actions" \
     -d '{"action_type": "SendCtrlAltDel"}' >/dev/null 2>&1 || return 0
   # Give the guest up to 10s; the socket disappears when firecracker exits.
   for _ in $(seq 1 10); do
@@ -382,7 +427,9 @@ case "${1:-}" in
   images)   shift; cmd_images "$@";;
   start)    shift; cmd_start "$@";;
   stop)     shift; cmd_stop "$@";;
+  restart)  shift; cmd_restart "$@";;
   destroy)  shift; cmd_destroy "$@";;
+  status)   shift; cmd_status "$@";;
   logs)     shift; cmd_logs "$@";;
   version|--version|-V) cmd_version;;
   net-up)   shift; cmd_net_up "$@";;

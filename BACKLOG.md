@@ -25,6 +25,12 @@ Loosely prioritized. Items came out of design reviews; none block daily use.
   rootfs until the host volume fills, taking down every VM.
 - **CoW disks** — read-only base + per-VM overlay (or reflink/dm-thin) instead
   of full sparse copies; also reclaim freed guest blocks (no discard today).
+- **Graceful guest shutdown on aarch64** — Firecracker has no `SendCtrlAltDel`
+  on ARM, so every `vm stop`/`vm destroy`/host-maintenance stop hard-cuts the
+  guest (systemd SIGTERMs firecracker; no guest filesystem flush — a durability
+  risk for the rw ext4 rootfs). The `curl -f` change only removes the wasted
+  ~10s wait, not the hard-cut. A real fix needs an in-guest agent (signal/vsock
+  -triggered `poweroff`) or Firecracker ARM ACPI-shutdown support.
 
 ## Nice to have
 

@@ -1,9 +1,14 @@
 # firecracker@.service — one instance per VM (firecracker@<name>)
-# Enabled instances are restored automatically after a host reboot.
+# Enabled instances are restored after a host reboot, and the supervisor owns
+# the VM lifecycle: guest reboots and kernel panics auto-recover (Restart=always).
 [Unit]
 Description=Firecracker microVM %i
 After=vps-network.service
 Requires=vps-network.service
+# Boot-loop backstop: a VM that panics every boot trips the burst limit after
+# ~10 rapid restarts and enters `failed` instead of looping forever.
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
 ExecStartPre=/usr/bin/vm net-up %i
@@ -12,7 +17,11 @@ ExecStart=/usr/sbin/firecracker --api-sock /run/vps/%i.sock --config-file /var/l
 ExecStop=/usr/bin/vm send-shutdown %i
 ExecStopPost=/usr/bin/vm net-down %i
 TimeoutStopSec=15
-Restart=on-failure
+# Always restart: firecracker exits 0 for ALL guest events (poweroff/reboot/panic),
+# so on-failure would never fire for a crash. always recovers reboots and panics;
+# in-guest poweroff also restarts (indistinguishable at the exit-code level).
+# The intentional-down path is `vm stop` (a systemd-initiated stop, unaffected).
+Restart=always
 RestartSec=2
 
 [Install]

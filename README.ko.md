@@ -94,15 +94,17 @@ sudo vm create bot1 --image openclaw --mem 2048
 ## 일상 운영
 
 ```bash
-vm list                # NAME  IP           STATE    IMAGE     MEM
+vm list                # NAME IP STATE BOOT IMAGE CPU MEM
+vm status bot1         # 단일 VM 상세 보기 + 최근 로그
 vm images              # golden image + 커널 목록, 타임스탬프 포함
 sudo vm logs bot1      # 시리얼 콘솔 — 부팅 실패 시 첫 번째 확인 지점
 sudo vm stop bot1
 sudo vm start bot1
+sudo vm restart bot1
 sudo vm destroy bot1   # 이름을 다시 입력해 확인; --force 로 생략 가능
 ```
 
-VM은 **애완동물(pet)** 입니다 — `apt`, `npm` 등으로 인플레이스 업그레이드하세요. 호스트가 재부팅되면 systemd가 모든 VM을 자동으로 복구합니다.
+VM은 **애완동물(pet)** 입니다 — `apt`, `npm` 등으로 인플레이스 업그레이드하세요. 게스트 안에서 `reboot`하거나 커널 패닉이 발생해도 systemd가 자동으로 복구합니다(`Restart=always`). 호스트 재부팅도 마찬가지로 모든 VM을 자동 복구합니다. VM을 내리려면 호스트에서 `sudo vm stop`을 쓰세요 — 이것이 정상적인 종료 경로입니다(게스트 안의 `poweroff`는 자동 재시작되므로 `vm stop`을 사용해야 합니다).
 
 ---
 

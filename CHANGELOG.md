@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 (2026-06-12)
+- New `vm restart <name>` and `vm status <name>` (detailed single-VM view: state,
+  boot-enabled, PID, restart count, recent log tail). `vm list` gains CPU and BOOT
+  columns.
+- Restart policy changed to `Restart=always` so in-guest reboots and kernel panics
+  auto-recover (firecracker exits 0 for all guest events, so `on-failure` never fired
+  for a crash). `vm stop` is the intended power-down path; a boot-loop backstop
+  (`StartLimitBurst`) prevents endless restarts on a VM that panics every boot.
+- `send-shutdown` no longer stalls ~10s on aarch64 — curl `-f` short-circuits the
+  unsupported SendCtrlAltDel (HTTP 400) instead of falling into the 10s wait loop.
+
 ## 0.4.0 (2026-06-11)
 - Open-source release readiness: English CLI output and `vm help`, English-first
   README (Korean version in README.ko.md), MIT LICENSE, bundled Firecracker

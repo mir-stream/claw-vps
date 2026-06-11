@@ -10,7 +10,7 @@
 # `vm setup kernel` / `vm setup base`.
 set -euo pipefail
 
-VERSION="${VERSION:-0.4.0}"
+VERSION="${VERSION:-0.5.0}"
 HOMEPAGE="${HOMEPAGE:-}"
 FC_VERSION="v1.16.0"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"     # the vps/ directory
