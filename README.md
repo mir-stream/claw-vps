@@ -42,7 +42,7 @@ Firecracker is what AWS runs Lambda on. Wrap each AI agent in its own VM, SSH fr
 - Linux with KVM (`ls /dev/kvm` must work) — bare metal or nested virt
 - Ubuntu 24.04 (Debian likely fine)
 - [Tailscale](https://tailscale.com) installed and logged in (free tier)
-- An SSH key pair — `vm init` will prompt you to paste your public key (`cat ~/.ssh/id_ed25519.pub`)
+- An SSH key pair — `vm init` will prompt you to paste your public key; this key is injected into **every VM** (not the host). If you only use Tailscale SSH and have no key yet, generate one first: `ssh-keygen -t ed25519`
 - `docker` — only for custom image builds
 
 ---
