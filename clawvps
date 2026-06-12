@@ -63,16 +63,23 @@ mac_for_ip() {  # 10.42.X.Y -> 06:00:0a:2a:XX:YY (locally administered)
 cmd_init() {
   need_root
   echo "[1/3] Advertising Tailscale subnet route (10.42.0.0/16)"
-  if command -v tailscale >/dev/null 2>&1; then
-    tailscale set --advertise-routes=10.42.0.0/16 && echo "  OK"
-  else
-    echo "  ! tailscale not found — install it, then run: sudo clawvps init"
+  if ! command -v tailscale >/dev/null 2>&1; then
+    echo "  ! tailscale not found — it is the access path for every VM." >&2
+    echo "    Install it:  curl -fsSL https://tailscale.com/install.sh | sh" >&2
+    echo "    Docs:        https://tailscale.com/docs/install" >&2
+    echo "    Then:        sudo tailscale up && sudo clawvps init" >&2
+    exit 1
   fi
+  tailscale set --advertise-routes=10.42.0.0/16 && echo "  OK"
   echo "[2/3] Registering a client SSH public key (injected into every VM)"
+  echo "  This is the PUBLIC key from the machine you'll SSH *from* (your laptop), not this host."
+  echo "  On that machine, print it with:   cat ~/.ssh/id_ed25519.pub"
+  echo "  No key yet? Create one first:     ssh-keygen -t ed25519"
+  echo "  Then copy the whole line (starts with 'ssh-ed25519 ...') and paste it below."
   if [ -s "${VMROOT}/authorized_keys" ]; then
-    echo "  $(wc -l < "${VMROOT}/authorized_keys") key(s) already registered. Paste another to add one (empty line to skip):"
+    echo "  $(wc -l < "${VMROOT}/authorized_keys") key(s) already registered — paste another to add one, or press Enter to skip:"
   else
-    echo "  Paste your public key (on your client: cat ~/.ssh/id_ed25519.pub):"
+    echo "  Paste your public key (or press Enter to skip and add it later):"
   fi
   local pubkey; read -r pubkey
   if [ -n "$pubkey" ]; then
@@ -84,9 +91,13 @@ cmd_init() {
   else
     echo "  skipped"
   fi
-  echo "[3/3] One manual step remains:"
-  echo "  approve the 10.42.0.0/16 route for this machine at"
-  echo "  https://login.tailscale.com/admin/machines (Routing settings)"
+  echo "[3/3] One manual step remains — approve the subnet route in the admin console:"
+  echo "  1. Open  https://login.tailscale.com/admin/machines"
+  echo "  2. Find this machine ($(hostname)) in the list"
+  echo "  3. Click the '...' menu on its row → 'Edit route settings'"
+  echo "  4. Tick the checkbox for the 10.42.0.0/16 subnet route"
+  echo "  5. Click 'Save'"
+  echo "  Until you do this, the route is advertised but NOT yet active — VMs stay unreachable."
   echo ""
   echo "Next: sudo clawvps setup kernel && sudo clawvps setup base"
 }

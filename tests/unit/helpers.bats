@@ -49,3 +49,24 @@ setup() {
   run next_ip
   [ "$output" = "10.42.0.10" ]
 }
+
+# Tailscale is the access path (subnet router) — without it a VM is unreachable.
+# init must abort hard, not warn-and-continue to key registration. We stub out
+# need_root and empty the PATH so `command -v tailscale` finds nothing.
+@test "cmd_init: aborts when tailscale is missing" {
+  need_root() { :; }
+  mkdir -p "$BATS_TEST_TMPDIR/empty"
+  PATH="$BATS_TEST_TMPDIR/empty" run cmd_init
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"tailscale not found"* ]]
+  [[ "$output" != *"[2/3]"* ]]   # never reached SSH key registration
+}
+
+@test "cmd_init: advertises the route and proceeds when tailscale is present" {
+  need_root() { :; }
+  tailscale() { return 0; }       # stub the real route advertisement
+  run cmd_init <<<""              # empty stdin → skip the key prompt
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"OK"* ]]       # route advertised
+  [[ "$output" == *"[2/3]"* ]]    # advanced past the tailscale gate
+}
