@@ -1,3 +1,7 @@
 packaging/dist/
 *.bak
 .DS_Store
+
+# Claude Code: commit shared skills, ignore local/personal state
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
