@@ -62,11 +62,41 @@ setup() {
   [[ "$output" != *"[2/3]"* ]]   # never reached SSH key registration
 }
 
-@test "cmd_init: advertises the route and proceeds when tailscale is present" {
+@test "cmd_init: aborts when tailscale is installed but logged out" {
   need_root() { :; }
-  tailscale() { return 0; }       # stub the real route advertisement
+  # status reports a non-Running backend; set/up are never reached.
+  tailscale() { case "$1" in status) echo '"BackendState": "NeedsLogin"';; *) return 0;; esac; }
+  run cmd_init <<<""
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"not logged in"* ]]
+  [[ "$output" != *"[2/3]"* ]]   # never reached SSH key registration
+}
+
+@test "cmd_init: advertises and confirms an already-approved route" {
+  need_root() { :; }
+  # Logged in (BackendState Running) with the /16 already in the Self block, so
+  # [3/3] short-circuits instead of entering the wait loop.
+  tailscale() {
+    case "$1" in
+      status) printf '%s\n' '"BackendState": "Running"' '"Self": {' '"AllowedIPs": ["10.42.0.0/16"]' '},' '"Peer": {}';;
+      *) return 0;;
+    esac
+  }
   run cmd_init <<<""              # empty stdin → skip the key prompt
   [ "$status" -eq 0 ]
-  [[ "$output" == *"OK"* ]]       # route advertised
-  [[ "$output" == *"[2/3]"* ]]    # advanced past the tailscale gate
+  [[ "$output" == *"route advertised"* ]]
+  [[ "$output" == *"[2/3]"* ]]                 # advanced past the tailscale gate
+  [[ "$output" == *"already approved and active"* ]]   # [3/3] detected the route
+}
+
+@test "_await_route: gives up (returns 1) when the route never approves" {
+  _route_active() { return 1; }   # never approved
+  run _await_route 0 0            # zero timeout/interval → no sleeping, no hang
+  [ "$status" -eq 1 ]
+}
+
+@test "_await_route: returns 0 as soon as the route is active" {
+  _route_active() { return 0; }   # already approved
+  run _await_route 0 0
+  [ "$status" -eq 0 ]
 }
