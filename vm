@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # vm — Firecracker microVM provisioner ("mini VPS" for your homelab)
 # Part of claw-vps. See `vm help` and the README for documentation.
-set -euo pipefail
 
-VMROOT="/var/lib/vms"
+# VMROOT is overridable so unit tests can point the pure helpers at a temp dir.
+VMROOT="${VMROOT:-/var/lib/vms}"
 IMAGES="${VMROOT}/images"
 KERNEL="${VMROOT}/kernel-claw"
 GW="10.42.0.1"
@@ -418,23 +418,28 @@ cmd_send_shutdown() {
   return 0
 }
 
-case "${1:-}" in
-  init)     shift; cmd_init "$@";;
-  setup)    shift; cmd_setup "$@";;
-  build)    shift; cmd_build "$@";;
-  create)   shift; cmd_create "$@";;
-  list)     shift; cmd_list "$@";;
-  images)   shift; cmd_images "$@";;
-  start)    shift; cmd_start "$@";;
-  stop)     shift; cmd_stop "$@";;
-  restart)  shift; cmd_restart "$@";;
-  destroy)  shift; cmd_destroy "$@";;
-  status)   shift; cmd_status "$@";;
-  logs)     shift; cmd_logs "$@";;
-  version|--version|-V) cmd_version;;
-  net-up)   shift; cmd_net_up "$@";;
-  net-down) shift; cmd_net_down "$@";;
-  send-shutdown) shift; cmd_send_shutdown "$@";;
-  help|--help|-h) usage;;
-  *) usage >&2; exit 1;;
-esac
+# Dispatch only when executed directly. When sourced (unit tests), just load the
+# functions so the pure helpers can be exercised without root or a real host.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  set -euo pipefail
+  case "${1:-}" in
+    init)     shift; cmd_init "$@";;
+    setup)    shift; cmd_setup "$@";;
+    build)    shift; cmd_build "$@";;
+    create)   shift; cmd_create "$@";;
+    list)     shift; cmd_list "$@";;
+    images)   shift; cmd_images "$@";;
+    start)    shift; cmd_start "$@";;
+    stop)     shift; cmd_stop "$@";;
+    restart)  shift; cmd_restart "$@";;
+    destroy)  shift; cmd_destroy "$@";;
+    status)   shift; cmd_status "$@";;
+    logs)     shift; cmd_logs "$@";;
+    version|--version|-V) cmd_version;;
+    net-up)   shift; cmd_net_up "$@";;
+    net-down) shift; cmd_net_down "$@";;
+    send-shutdown) shift; cmd_send_shutdown "$@";;
+    help|--help|-h) usage;;
+    *) usage >&2; exit 1;;
+  esac
+fi
