@@ -1,6 +1,6 @@
 ---
 name: release
-description: Cut and publish a new claw-vps release — bump the version, build the arm64+amd64 .deb packages on a Linux host, tag, and create a GitHub Release with the debs attached. Use when the user wants to "release", "publish", "ship", or "배포" a new claw-vps version, or asks to cut vX.Y.Z.
+description: Cut and publish a new claw-vps release — verify the test suite (unit + E2E) is green on the build host, then bump the version, build the arm64+amd64 .deb packages on a Linux host, tag, and create a GitHub Release with the debs attached. Use when the user wants to "release", "publish", "ship", or "배포" a new claw-vps version, or asks to cut vX.Y.Z. A release is gated on E2E passing — never ship if E2E is red.
 ---
 
 # Releasing claw-vps
@@ -21,6 +21,9 @@ apt repo). Users install with `sudo apt install ./claw-vps_<ver>_<arch>.deb`.
 - The build host may run **production VMs** (e.g. `claw1`). Building debs does
   **not** touch them. Do **not** `apt install` on the build host as part of a
   release — releasing only publishes artifacts.
+- **Tests gate the release.** The same aarch64 host doubles as the E2E host. The
+  bats suite under `tests/` must be green (unit + E2E) before you bump a version
+  — see Step 0. E2E boots throwaway microVMs; it does **not** touch `claw1`.
 
 ## Steps
 
@@ -30,6 +33,37 @@ Set the version once:
 VER=0.5.2                      # the new version
 HOST=root@100.106.44.11        # aarch64 Linux build host
 ```
+
+### 0. Gate — the test suite must pass (including E2E)
+
+**No release proceeds unless `unit` + `e2e` are green on the build host.** E2E
+actually boots throwaway microVMs and asserts boot/SSH/lifecycle/isolation, so it
+is the only layer that proves "it really works on a real host." It creates and
+destroys its own `bt*`/`bia*`/`m*` VMs and never touches production VMs.
+
+Sync the working tree to the host and run the layers:
+
+```bash
+rsync -az --delete --exclude='.git' --exclude='packaging/dist' ./ "$HOST:/root/claw-vps-src/"
+ssh "$HOST" "cd /root/claw-vps-src && chmod +x vm && tests/run-tests.sh unit && tests/run-tests.sh e2e"
+```
+
+Both commands must exit 0. If any test fails or is unexpectedly **skipped**
+(a skip means a prerequisite is missing, not that it passed), **stop — do not
+release.** One-time host setup if E2E skips:
+
+- `apt install -y bats` (and `shellcheck` for lint).
+- base image + guest kernel present (`vm images`); else `vm setup base|kernel`.
+- the **host's own** root SSH key must be registered so host→guest SSH works:
+  `ssh-keygen -t ed25519 -N "" -f /root/.ssh/id_ed25519`, then append
+  `/root/.ssh/id_ed25519.pub` to `/var/lib/vms/authorized_keys` (or `vm init`).
+  Without it every reachability/isolation test times out.
+- `LAN_TARGET=<a private IP the host can reach, e.g. its gateway>` makes the
+  VM→home-LAN block assertion run live instead of skipping (optional but preferred).
+
+Lint (`tests/run-tests.sh lint`) is advisory: it currently surfaces only
+pre-existing style infos (SC2012/2006/2086) and exits non-zero, so it is **not**
+part of the hard gate — run it, read it, but it does not block the release.
 
 ### 1. Bump version + changelog, commit, push
 
@@ -104,5 +138,10 @@ ssh "$HOST" "rm -rf /root/claw-vps-src"
   what is installed — always bump `VER` (and the `make-deb.sh` default) first.
 - VM data (`/var/lib/vms/`) is never part of the deb, so upgrades never touch
   disks/images/config.
-- This is the manual flow. Automating it (tag → GitHub Action builds + uploads)
-  is a standing backlog item; until then, run these steps by hand.
+- **Never ship past a red E2E.** If you changed `vm`, the build/setup scripts, or
+  networking, re-run Step 0 — unit tests alone do not prove a guest still boots,
+  stays reachable, or remains isolated. E2E is slow on purpose; that is the cost
+  of confidence before a public release.
+- This is the manual flow. Automating it (tag → GitHub Action builds + uploads,
+  with the E2E gate as a required check) is a standing backlog item; until then,
+  run these steps by hand.
