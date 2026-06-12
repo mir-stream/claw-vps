@@ -10,7 +10,7 @@
 # `vm setup kernel` / `vm setup base`.
 set -euo pipefail
 
-VERSION="${VERSION:-0.5.0}"
+VERSION="${VERSION:-0.5.1}"
 HOMEPAGE="${HOMEPAGE:-}"
 FC_VERSION="v1.16.0"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"     # the vps/ directory
@@ -36,6 +36,8 @@ build_one() {
   install -D -m 644 "${SRC}/examples/openclaw.Dockerfile" "${stage}/usr/share/claw-vps/examples/openclaw.Dockerfile"
   install -D -m 644 "${SRC}/firecracker@.service"  "${stage}/lib/systemd/system/firecracker@.service"
   install -D -m 644 "${SRC}/vps-network.service"   "${stage}/lib/systemd/system/vps-network.service"
+  # needrestart override: keep apt upgrades from bouncing running VMs (see file header).
+  install -D -m 644 "${SRC}/needrestart-claw-vps.conf" "${stage}/etc/needrestart/conf.d/claw-vps.conf"
 
   # --- bundled firecracker binary (per arch) + its license ---
   local bin_cache="${DIST}/.fc-${FC_VERSION}-${fc_arch}"
@@ -73,6 +75,9 @@ build_one() {
     echo " Dockerfiles (vm build); foundation images are built once with"
     echo " vm setup kernel / vm setup base."
   } > "${stage}/DEBIAN/control"
+
+  # Mark the needrestart override as a conffile so local edits survive upgrades.
+  echo "/etc/needrestart/conf.d/claw-vps.conf" > "${stage}/DEBIAN/conffiles"
 
   cat > "${stage}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.1 (2026-06-12)
+- Non-disruptive upgrades: ship `/etc/needrestart/conf.d/claw-vps.conf` so Ubuntu's
+  needrestart no longer auto-restarts running `firecracker@<vm>` units when the bundled
+  firecracker binary is replaced on `apt`/`dpkg` upgrade (which hard-cut every guest).
+
 ## 0.5.0 (2026-06-12)
 - New `vm restart <name>` and `vm status <name>` (detailed single-VM view: state,
   boot-enabled, PID, restart count, recent log tail). `vm list` gains CPU and BOOT
