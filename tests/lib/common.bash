@@ -1,12 +1,12 @@
 # Shared helpers for E2E bats tests. Sourced via `load` from each .bats file.
 #
 # E2E tests run ON the host VM (need root, firecracker, systemd, loop mounts).
-# By default they exercise the WORKING-TREE `vm` script — so you test the change
+# By default they exercise the WORKING-TREE `clawvps` script — so you test the change
 # you're about to ship, against the base image / kernel already in /var/lib/vms.
-#   Override the binary under test: VM_BIN=vm tests/run-tests.sh e2e   (installed deb)
+#   Override the binary under test: VM_BIN=clawvps tests/run-tests.sh e2e   (installed deb)
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-VM_BIN="${VM_BIN:-$REPO_ROOT/vm}"
+VM_BIN="${VM_BIN:-$REPO_ROOT/clawvps}"
 VMROOT="${VMROOT:-/var/lib/vms}"
 
 # Optional private-LAN target for the isolation test (VM → home LAN must be
@@ -20,8 +20,8 @@ vm_cli() { sudo "$VM_BIN" "$@"; }
 require_host() {
   command -v firecracker >/dev/null 2>&1 || skip "firecracker not installed — E2E needs a configured host"
   sudo -n true 2>/dev/null || skip "passwordless sudo required for E2E (or run the suite as root)"
-  [ -f "$VMROOT/images/base.ext4" ] || skip "base image missing — run: sudo vm setup base"
-  [ -f "$VMROOT/kernel-claw" ]      || skip "guest kernel missing — run: sudo vm setup kernel"
+  [ -f "$VMROOT/images/base.ext4" ] || skip "base image missing — run: sudo clawvps setup base"
+  [ -f "$VMROOT/kernel-claw" ]      || skip "guest kernel missing — run: sudo clawvps setup kernel"
 }
 
 # A short, valid VM name (<=11 chars per the tap-device limit). $BATS_TEST_NUMBER

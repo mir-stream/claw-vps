@@ -4,7 +4,7 @@ Loosely prioritized. Items came out of design reviews; none block daily use.
 
 ## Next up
 
-- **`vm backup <name>`** — snapshot a VM's rootfs.ext4 (sparse copy while
+- **`clawvps backup <name>`** — snapshot a VM's rootfs.ext4 (sparse copy while
   stopped). The safety net for the pets model, where VMs are upgraded in place.
 - **Web serial console** — browser ⇄ WebSocket gateway (ttyd) ⇄ Firecracker
   serial. The "console" button a real VPS provider has: access even when a
@@ -18,15 +18,15 @@ Loosely prioritized. Items came out of design reviews; none block daily use.
 
 - **Firecracker jailer** — run the VMM in a chroot as non-root (currently runs
   as root; a VMM escape today means root on the host).
-- **IP allocation hardening** — reuse IPs freed by `vm destroy` (currently
+- **IP allocation hardening** — reuse IPs freed by `clawvps destroy` (currently
   max+1, so freed IPs are stranded) and `flock` against concurrent
-  `vm create` racing to the same IP/MAC.
+  `clawvps create` racing to the same IP/MAC.
 - **Per-VM disk quotas** — a runaway guest can currently grow its sparse 16G
   rootfs until the host volume fills, taking down every VM.
 - **CoW disks** — read-only base + per-VM overlay (or reflink/dm-thin) instead
   of full sparse copies; also reclaim freed guest blocks (no discard today).
 - **Graceful guest shutdown on aarch64** — Firecracker has no `SendCtrlAltDel`
-  on ARM, so every `vm stop`/`vm destroy`/host-maintenance stop hard-cuts the
+  on ARM, so every `clawvps stop`/`clawvps destroy`/host-maintenance stop hard-cuts the
   guest (systemd SIGTERMs firecracker; no guest filesystem flush — a durability
   risk for the rw ext4 rootfs). The `curl -f` change only removes the wasted
   ~10s wait, not the hard-cut. A real fix needs an in-guest agent (signal/vsock
@@ -34,7 +34,7 @@ Loosely prioritized. Items came out of design reviews; none block daily use.
 
 ## Nice to have
 
-- **`vm resize`** — grow a VM's disk/memory (disk: truncate + resize2fs;
+- **`clawvps resize`** — grow a VM's disk/memory (disk: truncate + resize2fs;
   memory: edit config.json + restart).
 - **Config injection via a second drive** (NoCloud style) instead of
   loop-mounting the rootfs at create time — removes mount-leak failure modes

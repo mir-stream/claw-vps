@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Full-lifecycle E2E against the working-tree `vm`. This is the real regression
+# Full-lifecycle E2E against the working-tree `clawvps`. This is the real regression
 # net: a VM is actually created, booted, reached over SSH, restarted, recovered,
 # and destroyed — with host-side cleanup verified. Minutes, not seconds.
 
@@ -19,7 +19,7 @@ teardown() {
   for v in ${EXTRA_VMS:-}; do destroy_quietly "$v"; done
 }
 
-@test "create: VM appears running in 'vm list' with an allocated IP" {
+@test "create: VM appears running in 'clawvps list' with an allocated IP" {
   run vm_cli create "$NAME"
   [ "$status" -eq 0 ]
 

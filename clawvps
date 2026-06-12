@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# vm — Firecracker microVM provisioner ("mini VPS" for your homelab)
-# Part of claw-vps. See `vm help` and the README for documentation.
+# clawvps — Firecracker microVM provisioner ("mini VPS" for your homelab)
+# Part of claw-vps. See `clawvps help` and the README for documentation.
 
 # VMROOT is overridable so unit tests can point the pure helpers at a temp dir.
 VMROOT="${VMROOT:-/var/lib/vms}"
@@ -12,29 +12,29 @@ POOL_FIRST="10.42.0.10"
 
 usage() {
   cat <<'EOF'
-vm — Firecracker microVM provisioner ("mini VPS" for your homelab)
+clawvps — Firecracker microVM provisioner ("mini VPS" for your homelab)
 
 One-time host setup:
-  vm init                       advertise the Tailscale subnet route and register
+  clawvps init                       advertise the Tailscale subnet route and register
                                 a client SSH public key (injected into every VM)
-  vm setup kernel               build the guest kernel (compiles Linux; takes a while)
-  vm setup base                 build the base golden image (debootstrap)
+  clawvps setup kernel               build the guest kernel (compiles Linux; takes a while)
+  clawvps setup base                 build the base golden image (debootstrap)
 
 Images (Dockerfile-based; requires docker):
-  vm build <image> [-f <Dockerfile>] [--example]
+  clawvps build <image> [-f <Dockerfile>] [--example]
                                 build a bootable image on top of claw-vps/base.
                                 Default lookup: ./<image>.Dockerfile, then ./Dockerfile
-  vm images                     list golden images and the guest kernel
+  clawvps images                     list golden images and the guest kernel
 
 VM lifecycle:
-  vm create <name> [--image base] [--cpus 2] [--mem 1024] [--authkey-file <path>]
-  vm list                       all VMs: name, IP, state, boot, image, cpu, memory
-  vm start <name> / vm stop <name>
-  vm restart <name>             restart a running VM (systemctl restart)
-  vm status <name>              detailed single-VM view (state, boot, PID, log tail)
-  vm destroy <name> [--force]   delete a VM and its disk (asks for confirmation)
-  vm logs <name>                follow the VM's serial console (journald)
-  vm version / vm help
+  clawvps create <name> [--image base] [--cpus 2] [--mem 1024] [--authkey-file <path>]
+  clawvps list                       all VMs: name, IP, state, boot, image, cpu, memory
+  clawvps start <name> / clawvps stop <name>
+  clawvps restart <name>             restart a running VM (systemctl restart)
+  clawvps status <name>              detailed single-VM view (state, boot, PID, log tail)
+  clawvps destroy <name> [--force]   delete a VM and its disk (asks for confirmation)
+  clawvps logs <name>                follow the VM's serial console (journald)
+  clawvps version / clawvps help
 EOF
 }
 
@@ -66,7 +66,7 @@ cmd_init() {
   if command -v tailscale >/dev/null 2>&1; then
     tailscale set --advertise-routes=10.42.0.0/16 && echo "  OK"
   else
-    echo "  ! tailscale not found — install it, then run: sudo vm init"
+    echo "  ! tailscale not found — install it, then run: sudo clawvps init"
   fi
   echo "[2/3] Registering a client SSH public key (injected into every VM)"
   if [ -s "${VMROOT}/authorized_keys" ]; then
@@ -88,16 +88,16 @@ cmd_init() {
   echo "  approve the 10.42.0.0/16 route for this machine at"
   echo "  https://login.tailscale.com/admin/machines (Routing settings)"
   echo ""
-  echo "Next: sudo vm setup kernel && sudo vm setup base"
+  echo "Next: sudo clawvps setup kernel && sudo clawvps setup base"
 }
 
 # Foundation builds (kernel / base image) live outside the Dockerfile world,
-# hence a separate verb from `vm build`.
+# hence a separate verb from `clawvps build`.
 cmd_setup() {
   need_root
   local target="${1:-}"
   local script="/usr/share/claw-vps/build-${target}.sh"
-  { [ -n "$target" ] && [ -f "$script" ]; } || die "usage: vm setup kernel|base"
+  { [ -n "$target" ] && [ -f "$script" ]; } || die "usage: clawvps setup kernel|base"
   exec bash "$script"
 }
 
@@ -115,8 +115,8 @@ cmd_build() {
   need_root
   local target="${1:-}"; shift || true
   case "$target" in
-    kernel|base) die "foundation builds moved to a separate verb  →  sudo vm setup ${target}";;
-    "") die "usage: vm build <image-name> [-f <Dockerfile> | --example]";;
+    kernel|base) die "foundation builds moved to a separate verb  →  sudo clawvps setup ${target}";;
+    "") die "usage: clawvps build <image-name> [-f <Dockerfile> | --example]";;
   esac
 
   # Dockerfile build: layer on top of claw-vps/base, convert to a bootable ext4.
@@ -139,10 +139,10 @@ cmd_build() {
     fi
   fi
   { [ -n "$dockerfile" ] && [ -f "$dockerfile" ]; } || die "no Dockerfile found (lookup order: ./${target}.Dockerfile → ./Dockerfile)
-  specify one:      vm build ${target} -f <Dockerfile>
-  use an example:   vm build ${target} --example   (list: ls /usr/share/claw-vps/examples/)"
+  specify one:      clawvps build ${target} -f <Dockerfile>
+  use an example:   clawvps build ${target} --example   (list: ls /usr/share/claw-vps/examples/)"
   command -v docker >/dev/null 2>&1 || die "docker is required — sudo apt install docker.io"
-  [ -f "${IMAGES}/base.ext4" ] || die "base image missing  →  sudo vm setup base"
+  [ -f "${IMAGES}/base.ext4" ] || die "base image missing  →  sudo clawvps setup base"
   echo "==> Dockerfile: ${dockerfile}"
 
   trap _build_cleanup EXIT
@@ -179,7 +179,7 @@ cmd_build() {
   trap - EXIT
 
   echo "==> done: ${img}"
-  echo "    use it: sudo vm create <name> --image ${target}"
+  echo "    use it: sudo clawvps create <name> --image ${target}"
 }
 
 # Cleans up the loop mount and half-built VM dir if create fails midway
@@ -199,7 +199,7 @@ cmd_create() {
   need_root
   local name="" image="base" cpus=2 mem=1024 authkey_file=""
   name="${1:-}"; shift || true
-  case "$name" in ""|--*) die "usage: vm create <name> [--image base] [--cpus N] [--mem MiB] [--authkey-file <path>]";; esac
+  case "$name" in ""|--*) die "usage: clawvps create <name> [--image base] [--cpus N] [--mem MiB] [--authkey-file <path>]";; esac
   while [ $# -gt 0 ]; do
     case "$1" in
       --image) image="${2:?missing value for --image}"; shift 2;;
@@ -216,10 +216,10 @@ cmd_create() {
   local dir="${VMROOT}/${name}"
   [ -e "$dir" ] && die "already exists: $name"
   if [ ! -f "${IMAGES}/${image}.ext4" ]; then
-    [ "$image" = "base" ] && die "image missing: ${IMAGES}/base.ext4  →  sudo vm setup base"
-    die "image missing: ${IMAGES}/${image}.ext4  →  sudo vm build ${image}"
+    [ "$image" = "base" ] && die "image missing: ${IMAGES}/base.ext4  →  sudo clawvps setup base"
+    die "image missing: ${IMAGES}/${image}.ext4  →  sudo clawvps build ${image}"
   fi
-  [ -f "${KERNEL}" ] || die "kernel missing: ${KERNEL}  →  sudo vm setup kernel"
+  [ -f "${KERNEL}" ] || die "kernel missing: ${KERNEL}  →  sudo clawvps setup kernel"
 
   local ip mac
   ip="$(next_ip)"
@@ -289,7 +289,7 @@ EOF
   systemctl enable --now "firecracker@${name}.service"
   trap - EXIT
   CREATE_DIR=""
-  echo "OK: ${name} (${ip}) — connect: ssh root@${ip} / logs: vm logs ${name}"
+  echo "OK: ${name} (${ip}) — connect: ssh root@${ip} / logs: clawvps logs ${name}"
 }
 
 cmd_list() {
@@ -314,12 +314,12 @@ cmd_images() {
   ls -lh "${IMAGES}" 2>/dev/null | awk 'NR>1 {print "  " $9 "\t" $5 "\t" $6 " " $7 " " $8}'
   echo "== guest kernel =="
   ls -lh "${KERNEL}" 2>/dev/null | awk '{print "  " $9 "\t" $5 "\t" $6 " " $7 " " $8}' \
-    || echo "  (missing — sudo vm setup kernel)"
+    || echo "  (missing — sudo clawvps setup kernel)"
 }
 
 cmd_version() { dpkg-query -W -f='claw-vps ${Version}\n' claw-vps 2>/dev/null || echo "claw-vps (unknown version — not installed via deb?)"; }
 
-_vm_exists() { [ -f "${VMROOT}/${1}/config.json" ] || die "no such VM: ${1}  (see: vm list)"; }
+_vm_exists() { [ -f "${VMROOT}/${1}/config.json" ] || die "no such VM: ${1}  (see: clawvps list)"; }
 
 cmd_start()   { need_root; _vm_exists "${1:?name required}"; systemctl reset-failed "firecracker@${1}.service" 2>/dev/null || true; systemctl enable --now "firecracker@${1}.service"; }
 cmd_stop()    { need_root; _vm_exists "${1:?name required}"; systemctl disable --now "firecracker@${1}.service"; }
@@ -356,7 +356,7 @@ cmd_status() {
   echo "recent log:"
   # Same permission gate as cmd_logs, but non-fatal: still print the rest above.
   if [ "$(id -u)" -ne 0 ] && ! id -nG | grep -qwE 'adm|systemd-journal'; then
-    echo "  (no permission to read the journal — try: sudo vm status ${name})"
+    echo "  (no permission to read the journal — try: sudo clawvps status ${name})"
   else
     journalctl -u "firecracker@${name}.service" --no-hostname -n 8 -o cat 2>/dev/null \
       | sed 's/^/  /' || true
@@ -366,7 +366,7 @@ cmd_status() {
 cmd_logs() {
   local name="${1:?name required}"
   if [ "$(id -u)" -ne 0 ] && ! id -nG | grep -qwE 'adm|systemd-journal'; then
-    die "no permission to read the journal — try: sudo vm logs ${name}"
+    die "no permission to read the journal — try: sudo clawvps logs ${name}"
   fi
   journalctl -u "firecracker@${name}.service" -f --no-hostname
 }

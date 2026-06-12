@@ -42,7 +42,7 @@ setup() {
 @test "build: rejects foundation targets (moved to setup)" {
   run vm_cli build kernel
   [ "$status" -ne 0 ]
-  [[ "$output" == *"vm setup kernel"* ]]
+  [[ "$output" == *"clawvps setup kernel"* ]]
 }
 
 @test "destroy: rejects a non-existent VM" {

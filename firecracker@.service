@@ -11,16 +11,16 @@ StartLimitIntervalSec=300
 StartLimitBurst=10
 
 [Service]
-ExecStartPre=/usr/bin/vm net-up %i
+ExecStartPre=/usr/bin/clawvps net-up %i
 ExecStart=/usr/sbin/firecracker --api-sock /run/vps/%i.sock --config-file /var/lib/vms/%i/config.json
 # Attempt a graceful shutdown (x86_64 only); falls through to SIGTERM on failure.
-ExecStop=/usr/bin/vm send-shutdown %i
-ExecStopPost=/usr/bin/vm net-down %i
+ExecStop=/usr/bin/clawvps send-shutdown %i
+ExecStopPost=/usr/bin/clawvps net-down %i
 TimeoutStopSec=15
 # Always restart: firecracker exits 0 for ALL guest events (poweroff/reboot/panic),
 # so on-failure would never fire for a crash. always recovers reboots and panics;
 # in-guest poweroff also restarts (indistinguishable at the exit-code level).
-# The intentional-down path is `vm stop` (a systemd-initiated stop, unaffected).
+# The intentional-down path is `clawvps stop` (a systemd-initiated stop, unaffected).
 Restart=always
 RestartSec=2
 

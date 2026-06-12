@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Test runner for claw-vps. Three layers:
 #   lint  — shellcheck on every shell script (fast, no root)
-#   unit  — bats: pure helpers in `vm` (fast, no root, no VM)
+#   unit  — bats: pure helpers in `clawvps` (fast, no root, no VM)
 #   e2e   — bats: real create/boot/ssh/destroy on the host VM (slow, needs root)
 #
 # Usage:
@@ -13,7 +13,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-SHELL_FILES=(vm build-base.sh build-kernel.sh setup-network.sh packaging/make-deb.sh)
+SHELL_FILES=(clawvps build-base.sh build-kernel.sh setup-network.sh packaging/make-deb.sh)
 
 run_lint() {
   command -v shellcheck >/dev/null 2>&1 || {
@@ -36,12 +36,12 @@ run_e2e() {
   bats tests/e2e
 }
 
-# Opt-in: foundation builds (vm setup base/kernel) are very slow and network-heavy,
+# Opt-in: foundation builds (clawvps setup base/kernel) are very slow and network-heavy,
 # so the normal e2e suite assumes they already exist. This target is a placeholder
 # for wiring those live builds in later; for now it just runs the regular e2e.
 run_e2e_full() {
   echo "== e2e-full =="
-  echo "(foundation builds 'vm setup base/kernel' not yet wired — running standard e2e)"
+  echo "(foundation builds 'clawvps setup base/kernel' not yet wired — running standard e2e)"
   run_e2e
 }
 

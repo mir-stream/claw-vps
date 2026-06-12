@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build-kernel.sh — build the Firecracker guest kernel (invoked as: vm setup kernel)
+# build-kernel.sh — build the Firecracker guest kernel (invoked as: clawvps setup kernel)
 # The Firecracker CI kernels lack TUN/nf_tables, which breaks Tailscale and
 # iptables inside guests. This builds from the CI config with those enabled.
 # Works on both aarch64 and x86_64 (auto-detected).
@@ -123,6 +123,6 @@ else
   cp -v vmlinux "${OUT}"
 fi
 
-# Install to the system path the vm CLI expects.
+# Install to the system path the clawvps CLI expects.
 sudo install -D -m 644 "${OUT}" /var/lib/vms/kernel-claw
 echo "==> done: /var/lib/vms/kernel-claw"

@@ -1,8 +1,8 @@
 # Example: OpenClaw agent image
 #
-# Build: sudo vm build openclaw --example          (uses this file)
-#        sudo vm build myagent                     (uses ./myagent.Dockerfile or ./Dockerfile)
-#        sudo vm build myagent -f ./my.Dockerfile  (explicit path)
+# Build: sudo clawvps build openclaw --example          (uses this file)
+#        sudo clawvps build myagent                     (uses ./myagent.Dockerfile or ./Dockerfile)
+#        sudo clawvps build myagent -f ./my.Dockerfile  (explicit path)
 #
 # Rules for claw-vps Dockerfiles:
 #  - FROM must be claw-vps/base — the bootable foundation (systemd, sshd,
@@ -20,5 +20,5 @@ RUN apt-get update \
 
 RUN npm install -g openclaw@latest
 
-# Onboarding (one-time, interactive): after `vm create`, run
+# Onboarding (one-time, interactive): after `clawvps create`, run
 #   ssh root@<IP>  →  openclaw onboard --install-daemon

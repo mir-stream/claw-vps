@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# build-base.sh — bake the "bare VPS" base golden image (invoked as: vm setup base)
+# build-base.sh — bake the "bare VPS" base golden image (invoked as: clawvps setup base)
 # Baked in:  Ubuntu 24.04 + sshd + Tailscale + serial autologin + networkd +
 #            a first-boot unit (vps-firstboot).
-# NOT baked: IP / hostname / Tailscale authkey — `vm create` injects those per clone.
-# Agents aren't baked either — define them with Dockerfiles (vm build).
+# NOT baked: IP / hostname / Tailscale authkey — `clawvps create` injects those per clone.
+# Agents aren't baked either — define them with Dockerfiles (clawvps build).
 # Output: /var/lib/vms/images/base.ext4
 set -euo pipefail
 
@@ -66,7 +66,7 @@ ExecStart=-/sbin/agetty --autologin root --keep-baud 115200,38400,9600 \${tty} \
 EOF
 done
 
-# Networking: enable networkd only; the per-VM eth0 config is injected by `vm create`
+# Networking: enable networkd only; the per-VM eth0 config is injected by `clawvps create`
 # (kernel ip= boot args don't work with this kernel config — networkd does).
 systemctl enable systemd-networkd
 systemctl enable ssh
@@ -110,7 +110,7 @@ EOF
 systemctl enable regen-ssh-hostkeys.service
 CHROOT
 
-echo "==> 5. installing the first-boot unit (joins the tailnet if vm create injected an authkey)"
+echo "==> 5. installing the first-boot unit (joins the tailnet if clawvps create injected an authkey)"
 cat > "${MNT}/usr/local/sbin/vps-firstboot" <<'EOF'
 #!/usr/bin/env bash
 # Runs once if /etc/vps/ts-authkey exists: join the tailnet (+SSH), then discard the key.

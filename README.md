@@ -14,7 +14,7 @@
 <br>
 
 ```bash
-sudo vm create bot1 --image openclaw --mem 2048
+sudo clawvps create bot1 --image openclaw --mem 2048
 ssh root@10.42.0.10   # from your laptop — 15 seconds later
 ```
 
@@ -42,7 +42,7 @@ Firecracker is what AWS runs Lambda on. Wrap each AI agent in its own VM, SSH fr
 - Linux with KVM (`ls /dev/kvm` must work) — bare metal or nested virt
 - Ubuntu 24.04 (Debian likely fine)
 - [Tailscale](https://tailscale.com) installed and logged in (free tier)
-- An SSH key pair — `vm init` will prompt you to paste your public key; this key is injected into **every VM** (not the host). If you only use Tailscale SSH and have no key yet, generate one first: `ssh-keygen -t ed25519`
+- An SSH key pair — `clawvps init` will prompt you to paste your public key; this key is injected into **every VM** (not the host). If you only use Tailscale SSH and have no key yet, generate one first: `ssh-keygen -t ed25519`
 - `docker` — only for custom image builds
 
 ---
@@ -62,16 +62,16 @@ sudo apt install ./claw-vps_0.4.0_arm64.deb
 One-time setup:
 
 ```bash
-sudo vm init          # advertise VM subnet + register your SSH key
-sudo vm setup kernel  # build the guest kernel (5–40 min, once)
-sudo vm setup base    # build the base Ubuntu 24.04 image
+sudo clawvps init          # advertise VM subnet + register your SSH key
+sudo clawvps setup kernel  # build the guest kernel (5–40 min, once)
+sudo clawvps setup base    # build the base Ubuntu 24.04 image
 ```
 
-> After `vm init`, approve the `10.42.0.0/16` subnet route in the
+> After `clawvps init`, approve the `10.42.0.0/16` subnet route in the
 > [Tailscale admin console](https://login.tailscale.com/admin/machines) → your host → Routing settings.
 
 ```bash
-sudo vm create myvm    # "myvm" is just the name — pick anything
+sudo clawvps create myvm    # "myvm" is just the name — pick anything
 ssh root@10.42.0.10
 ```
 
@@ -80,33 +80,33 @@ ssh root@10.42.0.10
 ## Custom images
 
 ```bash
-sudo vm build openclaw --example          # use a bundled Dockerfile
-sudo vm build myapp -f myapp.Dockerfile   # bring your own
-sudo vm create bot1 --image openclaw --mem 2048
+sudo clawvps build openclaw --example          # use a bundled Dockerfile
+sudo clawvps build myapp -f myapp.Dockerfile   # bring your own
+sudo clawvps create bot1 --image openclaw --mem 2048
 ```
 
 - `FROM claw-vps/base` is mandatory — plain Ubuntu images won't boot
 - Register services with `RUN systemctl enable <unit>` — `ENTRYPOINT`/`CMD` are ignored
-- Never bake secrets — inject over SSH after `vm create`
+- Never bake secrets — inject over SSH after `clawvps create`
 
 ---
 
 ## Operations
 
 ```bash
-vm list                # NAME IP STATE BOOT IMAGE CPU MEM
-vm status bot1         # detailed single-VM view + recent log tail
-vm images              # golden images + kernel, with timestamps
-sudo vm logs bot1      # serial console — first stop for boot failures
-sudo vm stop bot1
-sudo vm start bot1
-sudo vm restart bot1
-sudo vm destroy bot1   # re-type the name to confirm; --force skips it
+clawvps list                # NAME IP STATE BOOT IMAGE CPU MEM
+clawvps status bot1         # detailed single-VM view + recent log tail
+clawvps images              # golden images + kernel, with timestamps
+sudo clawvps logs bot1      # serial console — first stop for boot failures
+sudo clawvps stop bot1
+sudo clawvps start bot1
+sudo clawvps restart bot1
+sudo clawvps destroy bot1   # re-type the name to confirm; --force skips it
 ```
 
 VMs are **pets** — upgrade in-place with `apt`, `npm`, etc. The host supervisor owns
 the VM lifecycle: host reboots, guest reboots, and kernel panics all auto-recover via
-systemd. To take a VM down, use `sudo vm stop` on the host — that's the intended
+systemd. To take a VM down, use `sudo clawvps stop` on the host — that's the intended
 power-down path (an in-guest `poweroff` will auto-restart instead).
 
 ---
@@ -143,11 +143,11 @@ VMs don't join the tailnet — the host is the subnet router. Each VM gets fresh
 
 **`Host key verification failed`** — IP reused after destroy. Fix: `ssh-keygen -R <IP>`
 
-**VM won't boot** — `sudo vm logs <name>` for the serial console.
+**VM won't boot** — `sudo clawvps logs <name>` for the serial console.
 
 **Can't reach VM from laptop** — check `10.42.0.0/16` is approved in Tailscale admin.
 
-**`vm build` says docker required** — `sudo apt install docker.io`
+**`clawvps build` says docker required** — `sudo apt install docker.io`
 
 **`ls /dev/kvm` fails** — no KVM. Enable nested virt in your hypervisor; on Apple Silicon requires M3+ + macOS 15+.
 
@@ -176,7 +176,7 @@ sudo rm -rf /var/lib/vms   # drop VM data
 
 ## Roadmap
 
-[BACKLOG.md](BACKLOG.md) — next up: `vm backup`, ttyd web console, Firecracker jailer, CoW disks.
+[BACKLOG.md](BACKLOG.md) — next up: `clawvps backup`, ttyd web console, Firecracker jailer, CoW disks.
 
 ---
 

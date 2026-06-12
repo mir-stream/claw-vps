@@ -45,7 +45,7 @@ Sync the working tree to the host and run the layers:
 
 ```bash
 rsync -az --delete --exclude='.git' --exclude='packaging/dist' ./ "$HOST:/root/claw-vps-src/"
-ssh "$HOST" "cd /root/claw-vps-src && chmod +x vm && tests/run-tests.sh unit && tests/run-tests.sh e2e"
+ssh "$HOST" "cd /root/claw-vps-src && chmod +x clawvps && tests/run-tests.sh unit && tests/run-tests.sh e2e"
 ```
 
 Both commands must exit 0. If any test fails or is unexpectedly **skipped**
@@ -53,10 +53,10 @@ Both commands must exit 0. If any test fails or is unexpectedly **skipped**
 release.** One-time host setup if E2E skips:
 
 - `apt install -y bats` (and `shellcheck` for lint).
-- base image + guest kernel present (`vm images`); else `vm setup base|kernel`.
+- base image + guest kernel present (`clawvps images`); else `clawvps setup base|kernel`.
 - the **host's own** root SSH key must be registered so host→guest SSH works:
   `ssh-keygen -t ed25519 -N "" -f /root/.ssh/id_ed25519`, then append
-  `/root/.ssh/id_ed25519.pub` to `/var/lib/vms/authorized_keys` (or `vm init`).
+  `/root/.ssh/id_ed25519.pub` to `/var/lib/vms/authorized_keys` (or `clawvps init`).
   Without it every reachability/isolation test times out.
 - `LAN_TARGET=<a private IP the host can reach, e.g. its gateway>` makes the
   VM→home-LAN block assertion run live instead of skipping (optional but preferred).
@@ -138,7 +138,7 @@ ssh "$HOST" "rm -rf /root/claw-vps-src"
   what is installed — always bump `VER` (and the `make-deb.sh` default) first.
 - VM data (`/var/lib/vms/`) is never part of the deb, so upgrades never touch
   disks/images/config.
-- **Never ship past a red E2E.** If you changed `vm`, the build/setup scripts, or
+- **Never ship past a red E2E.** If you changed `clawvps`, the build/setup scripts, or
   networking, re-run Step 0 — unit tests alone do not prove a guest still boots,
   stays reachable, or remains isolated. E2E is slow on purpose; that is the cost
   of confidence before a public release.

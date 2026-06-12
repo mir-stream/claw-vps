@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# Unit tests for the pure helpers in `vm`. No root, no VM — we source the script
+# Unit tests for the pure helpers in `clawvps`. No root, no VM — we source the script
 # (it self-guards its dispatch) and call the functions directly against a temp
 # VMROOT. These run in ~1s on any machine, including in CI.
 
@@ -8,7 +8,7 @@ setup() {
   export VMROOT="$BATS_TEST_TMPDIR/vms"
   mkdir -p "$VMROOT"
   # shellcheck source=/dev/null
-  source "$REPO_ROOT/vm"
+  source "$REPO_ROOT/clawvps"
 }
 
 @test "ip_to_int: known value" {

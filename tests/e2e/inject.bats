@@ -1,5 +1,5 @@
 #!/usr/bin/env bats
-# L3 injection verification: after `vm create`, check the per-VM artifacts WITHOUT
+# L3 injection verification: after `clawvps create`, check the per-VM artifacts WITHOUT
 # waiting for the guest to boot/SSH — purely deterministic. We assert on
 # config.json (no mount) and, via a read-only loop mount of rootfs.ext4, the files
 # injected into the guest. This is the fastest, most stable regression net.

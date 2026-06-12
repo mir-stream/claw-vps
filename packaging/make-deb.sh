@@ -4,13 +4,13 @@
 # Override the version: VERSION=0.5.0 ./make-deb.sh
 # Set a homepage for the control file: HOMEPAGE=https://github.com/you/claw-vps ./make-deb.sh
 #
-# Bundled: vm CLI, firecracker binary (pinned version, with its Apache-2.0
+# Bundled: clawvps CLI, firecracker binary (pinned version, with its Apache-2.0
 # LICENSE/NOTICE), image build tools, systemd units, example Dockerfiles.
 # NOT bundled: golden images / guest kernel — built after install via
-# `vm setup kernel` / `vm setup base`.
+# `clawvps setup kernel` / `clawvps setup base`.
 set -euo pipefail
 
-VERSION="${VERSION:-0.5.1}"
+VERSION="${VERSION:-0.6.0}"
 HOMEPAGE="${HOMEPAGE:-}"
 FC_VERSION="v1.16.0"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"     # the vps/ directory
@@ -29,7 +29,7 @@ build_one() {
   echo "==> assembling ${deb_arch} package"
 
   # --- files ---
-  install -D -m 755 "${SRC}/vm"               "${stage}/usr/bin/vm"
+  install -D -m 755 "${SRC}/clawvps"               "${stage}/usr/bin/clawvps"
   install -D -m 755 "${SRC}/setup-network.sh" "${stage}/usr/sbin/vps-setup-network"
   install -D -m 755 "${SRC}/build-kernel.sh"  "${stage}/usr/share/claw-vps/build-kernel.sh"
   install -D -m 755 "${SRC}/build-base.sh"    "${stage}/usr/share/claw-vps/build-base.sh"
@@ -69,11 +69,11 @@ build_one() {
     [ -n "${HOMEPAGE}" ] && echo "Homepage: ${HOMEPAGE}"
     echo "Section: admin"
     echo "Priority: optional"
-    echo "Description: Firecracker mini-VPS provisioner (vm CLI)"
+    echo "Description: Firecracker mini-VPS provisioner (clawvps CLI)"
     echo " Stamps out isolated Firecracker microVMs with SSH access via"
     echo " Tailscale subnet routing. Golden images are defined with plain"
-    echo " Dockerfiles (vm build); foundation images are built once with"
-    echo " vm setup kernel / vm setup base."
+    echo " Dockerfiles (clawvps build); foundation images are built once with"
+    echo " clawvps setup kernel / clawvps setup base."
   } > "${stage}/DEBIAN/control"
 
   # Mark the needrestart override as a conffile so local edits survive upgrades.
@@ -88,10 +88,10 @@ systemctl enable --now vps-network.service || true
 if [ "$1" = "configure" ] && [ -z "$2" ]; then   # fresh install only (not upgrades)
   echo ""
   echo "claw-vps installed. Get started:"
-  echo "  sudo vm init            # one-time setup (subnet route + SSH key)"
-  echo "  sudo vm setup kernel    # build the guest kernel (one-time)"
-  echo "  sudo vm setup base      # build the base golden image (one-time)"
-  echo "  sudo vm create first    # create a VM"
+  echo "  sudo clawvps init            # one-time setup (subnet route + SSH key)"
+  echo "  sudo clawvps setup kernel    # build the guest kernel (one-time)"
+  echo "  sudo clawvps setup base      # build the base golden image (one-time)"
+  echo "  sudo clawvps create first    # create a VM"
 fi
 EOF
   chmod 755 "${stage}/DEBIAN/postinst"
