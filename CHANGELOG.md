@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0 (2026-06-12)
+- `clawvps init` now guards its hard prerequisite: if Tailscale is missing it
+  aborts with install instructions, and if Tailscale is installed but logged out
+  it stops and points at `sudo tailscale up` (the subnet router is the only access
+  path to every VM, so init must not silently continue).
+- `init` step [3/3] no longer just prints a hint and exits — it polls until this
+  node's `10.42.0.0/16` subnet route is actually approved and active in the admin
+  console, then confirms success (or warns on timeout). Detection scopes to the
+  node's own `Self` block so peer routes don't false-positive.
+- The three `init` steps share a unified format, and the SSH-key and route-approval
+  steps spell out exactly what to run/click.
+- `clawvps setup kernel` / `setup base` print a colored banner with a rough time
+  estimate up front, so the long foundation builds read as expected, not hung.
+
 ## 0.6.0 (2026-06-12)
 - **Breaking: the CLI is renamed `vm` → `clawvps`.** The old generic `vm` command
   is gone; every invocation is now `clawvps <subcommand>` (e.g. `sudo clawvps create`,
