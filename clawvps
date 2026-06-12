@@ -102,6 +102,32 @@ cmd_init() {
   echo "Next: sudo clawvps setup kernel && sudo clawvps setup base"
 }
 
+# A colorful heads-up before a long foundation build, so the user knows it is
+# expected to take a while (and roughly how long) rather than hung. Honors
+# NO_COLOR and falls back to plain text when stdout is not a terminal.
+_setup_banner() {
+  local target="$1" est what scales
+  case "$target" in
+    kernel) est="15–40 min"; scales="scales with CPU cores"
+            what="Compiling the Firecracker guest kernel from source (linux-6.1.128).";;
+    base)   est="5–10 min";  scales="scales with network + disk speed"
+            what="Debootstrapping Ubuntu 24.04 and baking the base golden image.";;
+    *)      return 0;;
+  esac
+  local R B DIM CY YE MAG
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    R=$'\033[0m'; B=$'\033[1m'; DIM=$'\033[2m'
+    CY=$'\033[36m'; YE=$'\033[33m'; MAG=$'\033[35m'
+  fi
+  local bar="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  printf '\n%s%s%s\n' "$CY$B" "$bar" "$R"
+  printf '%s  ☕  clawvps setup %s%s\n' "$B$MAG" "$target" "$R"
+  printf '%s      %s%s\n' "$DIM" "$what" "$R"
+  printf '%s      ⏱  estimated time: %s%s   %s(%s; one-time only)%s\n' "$B$YE" "$est" "$R" "$DIM" "$scales" "$R"
+  printf '%s      Safe to walk away — build output streams below.%s\n' "$DIM" "$R"
+  printf '%s%s%s\n\n' "$CY$B" "$bar" "$R"
+}
+
 # Foundation builds (kernel / base image) live outside the Dockerfile world,
 # hence a separate verb from `clawvps build`.
 cmd_setup() {
@@ -109,6 +135,7 @@ cmd_setup() {
   local target="${1:-}"
   local script="/usr/share/claw-vps/build-${target}.sh"
   { [ -n "$target" ] && [ -f "$script" ]; } || die "usage: clawvps setup kernel|base"
+  _setup_banner "$target"
   exec bash "$script"
 }
 
