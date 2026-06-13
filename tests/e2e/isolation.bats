@@ -28,8 +28,8 @@ teardown() {
   local ipa ipb
   ipa="$(vm_ip "$A")"; ipb="$(vm_ip "$B")"
 
-  wait_for_ssh "$ipa" || { vm_cli logs "$A" 2>/dev/null | tail -40; false; }
-  wait_for_ssh "$ipb" || { vm_cli logs "$B" 2>/dev/null | tail -40; false; }
+  wait_for_ssh "$ipa" || { dump_log "$A"; false; }
+  wait_for_ssh "$ipb" || { dump_log "$B"; false; }
 
   run guest_ping "$ipa" "$ipb"
   [ "$status" -ne 0 ]
@@ -39,7 +39,7 @@ teardown() {
   vm_cli create "$A"
   local ipa
   ipa="$(vm_ip "$A")"
-  wait_for_ssh "$ipa" || { vm_cli logs "$A" 2>/dev/null | tail -40; false; }
+  wait_for_ssh "$ipa" || { dump_log "$A"; false; }
 
   run guest_ping "$ipa" "10.42.0.1"
   [ "$status" -ne 0 ]
@@ -50,7 +50,7 @@ teardown() {
   vm_cli create "$A"
   local ipa
   ipa="$(vm_ip "$A")"
-  wait_for_ssh "$ipa" || { vm_cli logs "$A" 2>/dev/null | tail -40; false; }
+  wait_for_ssh "$ipa" || { dump_log "$A"; false; }
 
   run guest_ping "$ipa" "8.8.8.8"
   [ "$status" -eq 0 ]
@@ -61,7 +61,7 @@ teardown() {
   vm_cli create "$A"
   local ipa
   ipa="$(vm_ip "$A")"
-  wait_for_ssh "$ipa" || { vm_cli logs "$A" 2>/dev/null | tail -40; false; }
+  wait_for_ssh "$ipa" || { dump_log "$A"; false; }
 
   run guest_ping "$ipa" "$LAN_TARGET"
   [ "$status" -ne 0 ]

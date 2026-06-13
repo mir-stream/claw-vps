@@ -136,6 +136,35 @@ power-down path (an in-guest `poweroff` will auto-restart instead).
 
 ---
 
+## Memory overcommit
+
+VMs allocate guest RAM lazily, so you can hand out more total RAM across your VMs
+than the host physically has — most of it is never touched. The risk is the host
+OOM-killing a Firecracker process. `clawvps tune` makes overcommit safe using three
+standard Linux mechanisms (no custom daemons, nothing Firecracker-specific):
+
+- a per-host **`MemoryHigh` soft cap** on `firecracker.slice` (all VMs run inside it),
+  so under memory pressure the kernel reclaims/swaps **the VMs'** pages first — the
+  host's own RAM stays protected;
+- a host **swapfile**, giving `MemoryHigh` somewhere to push cold guest pages;
+- **zswap**, a compressed-RAM cache in front of swap, so most reclaim never hits the SSD.
+
+```bash
+sudo clawvps tune          # enable all three (recommended)
+```
+
+| Option | Default | Notes |
+|---|---|---|
+| `--vm-mem-high` | `auto` | aggregate soft cap for all VMs. `auto` = total RAM − 2048 MiB (host reserve). Accepts systemd sizes (`12G`, `8000M`). Skipped with a warning if the host is too small. |
+| `--swap` | `auto` | host swapfile size. `auto` = total RAM, capped at 16 GiB. `off` skips swap. Accepts sizes (`8G`). An existing `/swapfile` is left in place. |
+| `--zswap` | `on` | enable the compressed swap cache. `off` skips. |
+
+Idempotent (safe to re-run; updates the cap, keeps an existing swapfile) and
+persistent across reboot via systemd units, `/etc/fstab`, and a slice drop-in —
+it never edits GRUB or the kernel cmdline.
+
+---
+
 ## Network
 
 ```

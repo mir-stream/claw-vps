@@ -10,7 +10,7 @@
 # `clawvps setup kernel` / `clawvps setup base`.
 set -euo pipefail
 
-VERSION="${VERSION:-0.7.1}"
+VERSION="${VERSION:-0.8.0}"
 HOMEPAGE="${HOMEPAGE:-}"
 FC_VERSION="v1.16.0"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"     # the vps/ directory
@@ -30,11 +30,14 @@ build_one() {
 
   # --- files ---
   install -D -m 755 "${SRC}/clawvps"               "${stage}/usr/bin/clawvps"
+  install -D -m 755 "${SRC}/claw-fc-exec"          "${stage}/usr/sbin/claw-fc-exec"
   install -D -m 755 "${SRC}/setup-network.sh" "${stage}/usr/sbin/vps-setup-network"
   install -D -m 755 "${SRC}/build-kernel.sh"  "${stage}/usr/share/claw-vps/build-kernel.sh"
   install -D -m 755 "${SRC}/build-base.sh"    "${stage}/usr/share/claw-vps/build-base.sh"
   install -D -m 644 "${SRC}/examples/openclaw.Dockerfile" "${stage}/usr/share/claw-vps/examples/openclaw.Dockerfile"
   install -D -m 644 "${SRC}/firecracker@.service"  "${stage}/lib/systemd/system/firecracker@.service"
+  install -D -m 644 "${SRC}/firecracker.slice"     "${stage}/lib/systemd/system/firecracker.slice"
+  install -D -m 644 "${SRC}/claw-ksm.service"      "${stage}/lib/systemd/system/claw-ksm.service"
   install -D -m 644 "${SRC}/vps-network.service"   "${stage}/lib/systemd/system/vps-network.service"
   # needrestart override: keep apt upgrades from bouncing running VMs (see file header).
   install -D -m 644 "${SRC}/needrestart-claw-vps.conf" "${stage}/etc/needrestart/conf.d/claw-vps.conf"
@@ -64,7 +67,7 @@ build_one() {
     echo "Version: ${VERSION}"
     echo "Architecture: ${deb_arch}"
     echo "Maintainer: mir <repeat.language@gmail.com>"
-    echo "Depends: iptables, iproute2, debootstrap, curl, ca-certificates"
+    echo "Depends: iptables, iproute2, debootstrap, curl, ca-certificates, python3"
     echo "Recommends: docker.io"
     [ -n "${HOMEPAGE}" ] && echo "Homepage: ${HOMEPAGE}"
     echo "Section: admin"
@@ -85,6 +88,8 @@ set -e
 mkdir -p /var/lib/vms/images
 systemctl daemon-reload || true
 systemctl enable --now vps-network.service || true
+# KSM dedups identical guest pages across microVMs (all share the same base image).
+systemctl enable --now claw-ksm.service || true
 if [ "$1" = "configure" ] && [ -z "$2" ]; then   # fresh install only (not upgrades)
   echo ""
   echo "claw-vps installed. Get started:"
@@ -103,6 +108,7 @@ set -e
 # Running VMs (firecracker@*) are deliberately left alone.
 if [ "$1" = "remove" ]; then
   systemctl disable --now vps-network.service || true
+  systemctl disable --now claw-ksm.service || true
 fi
 EOF
   chmod 755 "${stage}/DEBIAN/prerm"

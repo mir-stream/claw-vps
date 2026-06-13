@@ -35,7 +35,7 @@ teardown() {
   vm_cli create "$NAME"
   ip="$(vm_ip "$NAME")"
 
-  wait_for_ssh "$ip" || { vm_cli logs "$NAME" 2>/dev/null | tail -40; false; }
+  wait_for_ssh "$ip" || { dump_log "$NAME"; false; }
 
   run guest_ssh "$ip" hostname
   [ "$status" -eq 0 ]
@@ -57,7 +57,7 @@ teardown() {
 
   run vm_cli restart "$NAME"
   [ "$status" -eq 0 ]
-  wait_for_ssh "$ip" || { vm_cli logs "$NAME" 2>/dev/null | tail -40; false; }
+  wait_for_ssh "$ip" || { dump_log "$NAME"; false; }
 }
 
 @test "recovery: an in-guest reboot auto-recovers (Restart=always)" {
@@ -68,7 +68,7 @@ teardown() {
   # `reboot` exits firecracker 0; systemd must bring it straight back.
   guest_ssh "$ip" "nohup reboot >/dev/null 2>&1 &" || true
   sleep 5   # let it actually go down before we wait for it to return
-  wait_for_ssh "$ip" 120 || { vm_cli logs "$NAME" 2>/dev/null | tail -40; false; }
+  wait_for_ssh "$ip" 120 || { dump_log "$NAME"; false; }
 }
 
 @test "destroy: removes the VM dir and tears down its tap device" {

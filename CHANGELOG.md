@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.8.0 (2026-06-13)
+- New `clawvps tune` command: makes VM memory overcommit safe and host-prioritized
+  using three standard Linux mechanisms (no custom daemons). It (1) puts every VM
+  in a new `firecracker.slice` and writes a host-specific aggregate `MemoryHigh=`
+  soft cap as a runtime drop-in, so the kernel reclaims/swaps the VMs' pages first
+  under memory pressure — protecting the host's own RAM; (2) creates a host
+  `/swapfile` (gives `MemoryHigh` somewhere to push cold guest pages) and persists
+  it via `/etc/fstab`; (3) enables `zswap` (compressed-RAM cache in front of swap)
+  now and on every boot via a small `claw-zswap.service` oneshot. Usage:
+  `clawvps tune [--vm-mem-high auto|<SIZE>] [--swap auto|<SIZE>|off] [--zswap on|off]`
+  (all default ON; `--vm-mem-high auto` = total RAM − 2048 MiB, `--swap auto` =
+  total RAM capped at 16 GiB). Idempotent and reboot-persistent; never touches GRUB.
+- The VM template unit (`firecracker@.service`) now joins `firecracker.slice`, and
+  the deb ships the new `firecracker.slice` unit.
+- Fix x86_64 guest microVMs failing to boot (`VFS: Unable to mount root fs on
+  unknown-block(0,0)`). `build-kernel.sh` built a vanilla kernel.org kernel, but on
+  x86_64 Firecracker describes its devices via ACPI and a vanilla kernel can't parse
+  Firecracker's ACPI tables (`ACPI: Unable to load the System Description Tables` →
+  virtio-blk probe fails `-EINVAL` → no root device). Per Firecracker's kernel
+  policy, build from the Amazon Linux microVM kernel tree
+  (`microvm-kernel-6.1.128-3.201.amzn2023`) instead of vanilla. aarch64 was
+  unaffected (it uses FDT for device discovery), so this only ever broke x86_64 hosts.
+- Every VM now boots with a virtio-balloon device with **free page reporting**
+  enabled (`free_page_reporting`, production-ready since Firecracker v1.14.0; our
+  guest kernel has `CONFIG_PAGE_REPORTING=y`). The guest proactively reports its
+  freed pages to the host, which drops them from the VM's RSS — so memory a guest
+  allocated and later freed is returned to the host automatically, with no host-side
+  control loop or daemon. The balloon is not inflated (`amount_mib: 0`), so there is
+  no CPU-intensive target-chasing; `deflate_on_oom` is on as a safety net.
+- Kernel Same-page Merging (KSM) is now enabled on install (`claw-ksm.service`) to
+  dedup identical guest pages across microVMs — they all boot from the same Ubuntu
+  base, so a lot of memory is identical and gets merged into shared copy-on-write
+  pages. Firecracker opts its memory in via a tiny launcher (`claw-fc-exec`) that
+  sets `PR_SET_MEMORY_MERGE` before exec (the flag survives execve; needs host
+  kernel >= 6.4, harmless otherwise). Disable with
+  `systemctl disable --now claw-ksm.service`. Note: cross-VM page dedup is a known
+  side-channel surface, so this suits same-owner/trusted workloads; turn it off for
+  mutually-untrusted multi-tenant VMs.
+
 ## 0.7.1 (2026-06-13)
 - Fix `clawvps setup base` aborting partway through the chroot config step. The
   block used an unquoted heredoc, so backticks inside its comments
