@@ -10,7 +10,7 @@
 # `clawvps setup kernel` / `clawvps setup base`.
 set -euo pipefail
 
-VERSION="${VERSION:-0.7.0}"
+VERSION="${VERSION:-0.7.1}"
 HOMEPAGE="${HOMEPAGE:-}"
 FC_VERSION="v1.16.0"
 SRC="$(cd "$(dirname "$0")/.." && pwd)"     # the vps/ directory
