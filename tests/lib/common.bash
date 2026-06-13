@@ -44,6 +44,10 @@ wait_for_ssh() {
   return 1
 }
 
+# Bounded log dump for failure diagnostics. NOT `clawvps logs`: that follows with
+# `journalctl -f` and never returns, so a failed reachability check would hang forever.
+dump_log() { sudo journalctl -u "firecracker@$1.service" --no-pager -n 60 2>/dev/null || true; }
+
 guest_ssh() {
   local ip="$1"; shift
   # LogLevel=ERROR silences "Warning: Permanently added ... known hosts" — bats `run`
