@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0 (unreleased)
+- New `clawvps tune` command: makes VM memory overcommit safe and host-prioritized
+  using three standard Linux mechanisms (no custom daemons). It (1) puts every VM
+  in a new `firecracker.slice` and writes a host-specific aggregate `MemoryHigh=`
+  soft cap as a runtime drop-in, so the kernel reclaims/swaps the VMs' pages first
+  under memory pressure — protecting the host's own RAM; (2) creates a host
+  `/swapfile` (gives `MemoryHigh` somewhere to push cold guest pages) and persists
+  it via `/etc/fstab`; (3) enables `zswap` (compressed-RAM cache in front of swap)
+  now and on every boot via a small `claw-zswap.service` oneshot. Usage:
+  `clawvps tune [--vm-mem-high auto|<SIZE>] [--swap auto|<SIZE>|off] [--zswap on|off]`
+  (all default ON; `--vm-mem-high auto` = total RAM − 2048 MiB, `--swap auto` =
+  total RAM capped at 16 GiB). Idempotent and reboot-persistent; never touches GRUB.
+- The VM template unit (`firecracker@.service`) now joins `firecracker.slice`, and
+  the deb ships the new `firecracker.slice` unit.
+
 ## 0.7.1 (2026-06-13)
 - Fix `clawvps setup base` aborting partway through the chroot config step. The
   block used an unquoted heredoc, so backticks inside its comments
