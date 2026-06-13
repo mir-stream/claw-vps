@@ -24,7 +24,7 @@ CONFIG_URL="https://s3.amazonaws.com/spec.ccfc.min/firecracker-ci/v1.12/${ARCH}/
 
 echo "==> installing build dependencies"
 sudo apt-get update -qq
-sudo apt-get install -y -qq build-essential flex bison libssl-dev libelf-dev bc wget xz-utils
+sudo apt-get install -y -qq build-essential flex bison libssl-dev libelf-dev bc wget
 
 mkdir -p "${WORKDIR}"
 cd "${WORKDIR}"
@@ -40,6 +40,10 @@ echo "==> fetching firecracker CI config (${ARCH})"
 wget -q -O ci.config "${CONFIG_URL}"
 
 cd "${SRCDIR}"
+# Sanity: confirm the AL tag really carries the kernel version we pin, so a future
+# Amazon Linux tag revision that bumps the base version can't slip through silently.
+treever="$(make -s kernelversion 2>/dev/null)"
+[ "${treever}" = "${KVER}" ] || { echo "ERROR: kernel tree is ${treever:-unknown}, expected ${KVER}" >&2; exit 1; }
 cp ../ci.config .config
 
 echo "==> enabling TUN / netfilter / nftables / conntrack / NAT / IPv6 / policy routing"
@@ -114,6 +118,10 @@ echo "==> verifying the critical options actually stuck"
 REQUIRED="CONFIG_TUN CONFIG_IP_MULTIPLE_TABLES CONFIG_NF_NAT CONFIG_NF_TABLES \
 CONFIG_IP_NF_MANGLE CONFIG_IP_NF_NAT CONFIG_NETFILTER_XT_TARGET_CONNMARK \
 CONFIG_NETFILTER_XT_TARGET_TCPMSS CONFIG_NETFILTER_XT_MATCH_CONNMARK"
+# On x86_64 Firecracker discovers devices via ACPI; if a future CI config disables
+# ACPI the guest can't find its root disk. Trip loudly here rather than ship a kernel
+# that boot-loops. (aarch64 uses FDT, so it doesn't require ACPI.)
+[ "${ARCH}" = "x86_64" ] && REQUIRED="${REQUIRED} CONFIG_ACPI"
 missing=0
 for sym in $REQUIRED; do
   if ! grep -q "^${sym}=y" .config; then
