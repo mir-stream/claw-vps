@@ -50,13 +50,13 @@ Firecracker is what AWS runs Lambda on. Wrap each AI agent in its own VM, SSH fr
 ## Install
 
 ```bash
-# amd64
-wget https://github.com/mir-stream/claw-vps/releases/download/v0.7.1/claw-vps_0.7.1_amd64.deb
-sudo apt install ./claw-vps_0.7.1_amd64.deb
+# amd64 — always the latest release
+wget https://github.com/mir-stream/claw-vps/releases/latest/download/claw-vps_amd64.deb
+sudo apt install ./claw-vps_amd64.deb
 
-# arm64
-wget https://github.com/mir-stream/claw-vps/releases/download/v0.7.1/claw-vps_0.7.1_arm64.deb
-sudo apt install ./claw-vps_0.7.1_arm64.deb
+# arm64 — always the latest release
+wget https://github.com/mir-stream/claw-vps/releases/latest/download/claw-vps_arm64.deb
+sudo apt install ./claw-vps_arm64.deb
 ```
 
 One-time setup:
@@ -212,8 +212,8 @@ VMs don't join the tailnet — the host is the subnet router. Each VM gets fresh
 Needs `dpkg-deb` + `curl` on Linux:
 
 ```bash
-packaging/make-deb.sh                  # → packaging/dist/
-VERSION=0.7.1 packaging/make-deb.sh
+packaging/make-deb.sh                  # → packaging/dist/ (version from make-deb.sh)
+VERSION=x.y.z packaging/make-deb.sh    # override the version
 ```
 
 ---

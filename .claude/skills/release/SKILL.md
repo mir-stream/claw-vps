@@ -118,16 +118,25 @@ mkdir -p "$TMPDIR/claw-rel"
 scp "$HOST:claw-vps-src/packaging/dist/claw-vps_${VER}_arm64.deb" \
     "$HOST:claw-vps-src/packaging/dist/claw-vps_${VER}_amd64.deb" "$TMPDIR/claw-rel/"
 ( cd "$TMPDIR/claw-rel" && shasum -a 256 *.deb )   # must match the host sha256sum
+
+# Version-less copies so the README can use a never-stale download URL
+# (github.com/.../releases/latest/download/claw-vps_<arch>.deb). Same bytes,
+# stable name — keep the versioned debs too for history.
+cp "$TMPDIR/claw-rel/claw-vps_${VER}_amd64.deb" "$TMPDIR/claw-rel/claw-vps_amd64.deb"
+cp "$TMPDIR/claw-rel/claw-vps_${VER}_arm64.deb" "$TMPDIR/claw-rel/claw-vps_arm64.deb"
 ```
 
 ### 5. Create the GitHub Release with both debs
 
 Notes should include the new `CHANGELOG.md` section plus the install one-liner.
+Attach **four** assets: the versioned debs (history) plus the version-less copies
+(so `releases/latest/download/claw-vps_<arch>.deb` — the README install URL — works).
 
 ```bash
 cd "$TMPDIR/claw-rel"
 gh release create "v$VER" \
   "claw-vps_${VER}_arm64.deb" "claw-vps_${VER}_amd64.deb" \
+  "claw-vps_arm64.deb" "claw-vps_amd64.deb" \
   --repo mir-stream/claw-vps \
   --title "claw-vps $VER" \
   --notes "$(printf '...install instructions + changelog...')"
