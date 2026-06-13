@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.8.0 (unreleased)
+## 0.8.0 (2026-06-13)
 - New `clawvps tune` command: makes VM memory overcommit safe and host-prioritized
   using three standard Linux mechanisms (no custom daemons). It (1) puts every VM
   in a new `firecracker.slice` and writes a host-specific aggregate `MemoryHigh=`
