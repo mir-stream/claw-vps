@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0 (unreleased)
+- Fix x86_64 guest microVMs failing to boot (`VFS: Unable to mount root fs on
+  unknown-block(0,0)`). `build-kernel.sh` built a vanilla kernel.org kernel, but on
+  x86_64 Firecracker describes its devices via ACPI and a vanilla kernel can't parse
+  Firecracker's ACPI tables (`ACPI: Unable to load the System Description Tables` →
+  virtio-blk probe fails `-EINVAL` → no root device). Per Firecracker's kernel
+  policy, build from the Amazon Linux microVM kernel tree
+  (`microvm-kernel-6.1.128-3.201.amzn2023`) instead of vanilla. aarch64 was
+  unaffected (it uses FDT for device discovery), so this only ever broke x86_64 hosts.
+
 ## 0.7.1 (2026-06-13)
 - Fix `clawvps setup base` aborting partway through the chroot config step. The
   block used an unquoted heredoc, so backticks inside its comments

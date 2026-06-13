@@ -1,12 +1,22 @@
 #!/usr/bin/env bash
 # build-kernel.sh — build the Firecracker guest kernel (invoked as: clawvps setup kernel)
 # The Firecracker CI kernels lack TUN/nf_tables, which breaks Tailscale and
-# iptables inside guests. This builds from the CI config with those enabled.
+# iptables inside guests. This builds the Amazon Linux microVM kernel from the CI
+# config with those enabled.
 # Works on both aarch64 and x86_64 (auto-detected).
 # Output: installed to /var/lib/vms/kernel-claw (plus a copy in ~/fc/kernel-claw).
 set -euo pipefail
 
 KVER="6.1.128"
+# Build Firecracker's own (Amazon Linux microVM) kernel tree, NOT a vanilla
+# kernel.org build. On x86_64, Firecracker describes its devices via ACPI, and a
+# vanilla kernel fails to parse Firecracker's ACPI tables ("ACPI: Unable to load
+# the System Description Tables" -> virtio-blk probe -EINVAL -> "Unable to mount
+# root fs"). The AL microvm tree carries the patches that make this work; vanilla
+# is explicitly unsupported by Firecracker's kernel policy. (aarch64 uses FDT and
+# tolerated vanilla, so this only ever broke x86_64 guests.)
+AMZN_TAG="microvm-kernel-${KVER}-3.201.amzn2023"
+SRCDIR="linux-${AMZN_TAG}"
 ARCH="$(uname -m)"        # aarch64 | x86_64
 WORKDIR="${HOME}/fc/kernel-build"
 OUT="${HOME}/fc/kernel-claw"
@@ -19,16 +29,17 @@ sudo apt-get install -y -qq build-essential flex bison libssl-dev libelf-dev bc 
 mkdir -p "${WORKDIR}"
 cd "${WORKDIR}"
 
-echo "==> fetching kernel source (linux-${KVER})"
-if [ ! -d "linux-${KVER}" ]; then
-  wget -q "https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${KVER}.tar.xz"
-  tar xf "linux-${KVER}.tar.xz"
+echo "==> fetching Amazon Linux microVM kernel source (${AMZN_TAG})"
+if [ ! -d "${SRCDIR}" ]; then
+  wget -q -O "${AMZN_TAG}.tar.gz" \
+    "https://github.com/amazonlinux/linux/archive/refs/tags/${AMZN_TAG}.tar.gz"
+  tar xf "${AMZN_TAG}.tar.gz"
 fi
 
 echo "==> fetching firecracker CI config (${ARCH})"
 wget -q -O ci.config "${CONFIG_URL}"
 
-cd "linux-${KVER}"
+cd "${SRCDIR}"
 cp ../ci.config .config
 
 echo "==> enabling TUN / netfilter / nftables / conntrack / NAT / IPv6 / policy routing"
