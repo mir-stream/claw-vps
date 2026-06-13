@@ -48,7 +48,10 @@ printf '#!/bin/sh\nexit 101\n' > "${MNT}/usr/sbin/policy-rc.d"
 chmod +x "${MNT}/usr/sbin/policy-rc.d"
 
 echo "==> 4. configuring inside the chroot"
-chroot "${MNT}" /bin/bash -euo pipefail <<CHROOT
+# Quoted heredoc (<<'CHROOT'): the parent shell must NOT expand anything here.
+# Backticks in the comments below would otherwise run as command substitution on
+# the host. SUITE is injected via env so it still expands inside the chroot.
+chroot "${MNT}" /usr/bin/env SUITE="${SUITE}" LC_ALL=C LANG=C /bin/bash -euo pipefail <<'CHROOT'
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
@@ -58,11 +61,11 @@ echo "vps-base" > /etc/hostname
 
 # Serial-console autologin. Console name differs by arch, so cover both.
 for tty in ttyS0 ttyAMA0; do
-  mkdir -p /etc/systemd/system/serial-getty@\${tty}.service.d
-  cat > /etc/systemd/system/serial-getty@\${tty}.service.d/autologin.conf <<EOF
+  mkdir -p /etc/systemd/system/serial-getty@${tty}.service.d
+  cat > /etc/systemd/system/serial-getty@${tty}.service.d/autologin.conf <<EOF
 [Service]
 ExecStart=
-ExecStart=-/sbin/agetty --autologin root --keep-baud 115200,38400,9600 \${tty} \\\$TERM
+ExecStart=-/sbin/agetty --autologin root --keep-baud 115200,38400,9600 ${tty} \$TERM
 EOF
 done
 
