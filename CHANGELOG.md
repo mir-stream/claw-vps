@@ -8,6 +8,15 @@
   allocated and later freed is returned to the host automatically, with no host-side
   control loop or daemon. The balloon is not inflated (`amount_mib: 0`), so there is
   no CPU-intensive target-chasing; `deflate_on_oom` is on as a safety net.
+- Kernel Same-page Merging (KSM) is now enabled on install (`claw-ksm.service`) to
+  dedup identical guest pages across microVMs — they all boot from the same Ubuntu
+  base, so a lot of memory is identical and gets merged into shared copy-on-write
+  pages. Firecracker opts its memory in via a tiny launcher (`claw-fc-exec`) that
+  sets `PR_SET_MEMORY_MERGE` before exec (the flag survives execve; needs host
+  kernel >= 6.4, harmless otherwise). Disable with
+  `systemctl disable --now claw-ksm.service`. Note: cross-VM page dedup is a known
+  side-channel surface, so this suits same-owner/trusted workloads; turn it off for
+  mutually-untrusted multi-tenant VMs.
 
 ## 0.7.1 (2026-06-13)
 - Fix `clawvps setup base` aborting partway through the chroot config step. The

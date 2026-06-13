@@ -12,7 +12,8 @@ StartLimitBurst=10
 
 [Service]
 ExecStartPre=/usr/bin/clawvps net-up %i
-ExecStart=/usr/sbin/firecracker --api-sock /run/vps/%i.sock --config-file /var/lib/vms/%i/config.json
+# Launched via claw-fc-exec so firecracker's memory opts into KSM (see claw-ksm.service).
+ExecStart=/usr/sbin/claw-fc-exec /usr/sbin/firecracker --api-sock /run/vps/%i.sock --config-file /var/lib/vms/%i/config.json
 # Attempt a graceful shutdown (x86_64 only); falls through to SIGTERM on failure.
 ExecStop=/usr/bin/clawvps send-shutdown %i
 ExecStopPost=/usr/bin/clawvps net-down %i
