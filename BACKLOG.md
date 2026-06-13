@@ -13,6 +13,12 @@ Loosely prioritized. Items came out of design reviews; none block daily use.
   does not apply.)
 - **Release automation** — tag-triggered GitHub Action: build both debs with
   `VERSION` from the tag, upload as release assets.
+- **Prebuilt guest kernel** — ship the microVM kernel as a per-arch release
+  asset so `clawvps setup kernel` can download it instead of every user
+  compiling from source (a long, toolchain-heavy build that's identical for
+  everyone). Local build stays as a fallback / for custom configs. Tradeoffs:
+  ~40 MB per-arch asset, and a published binary kernel needs a clear
+  update/security-patch cadence.
 
 ## Robustness
 
@@ -41,3 +47,10 @@ Loosely prioritized. Items came out of design reviews; none block daily use.
   and would allow read-only base images.
 - **Ephemeral, tagged authkeys** for the optional `--authkey-file` path
   (today a failed first boot leaves the key on disk and retries forever).
+- **Korean CLI output (i18n)** — CLI messages and `clawvps help` are
+  English-only today; add localized output (e.g. `LANG`/`CLAWVPS_LANG`-driven),
+  starting with Korean. The README already ships in both languages, so the CLI
+  is the last English-only surface.
+- **More Dockerfile examples** — `examples/` ships only `openclaw.Dockerfile`;
+  add a few common ones (plain dev box, a web service) so `clawvps build
+  --example <name>` has more to offer and users get copy-paste starting points.
