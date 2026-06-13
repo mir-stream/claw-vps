@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+# claw-fc-exec — launch firecracker with KSM whole-process merging enabled.
+#
+# Sets PR_SET_MEMORY_MERGE (Linux >= 6.4) on this process, then execs firecracker.
+# The flag is preserved across the execve below (MMF_VM_MERGE_ANY is part of
+# MMF_INIT_MASK in the kernel), so firecracker's guest-RAM mmap becomes eligible
+# for kernel same-page merging — letting the host KSM daemon dedup identical pages
+# across microVMs that all share the same Ubuntu base image.
+#
+# This is a no-op unless the host KSM daemon is actually running (claw-ksm.service),
+# and it is harmless on kernels < 6.4 (the prctl just fails and is ignored).
+import ctypes
+import os
+import sys
+
+PR_SET_MEMORY_MERGE = 67
+
+if len(sys.argv) < 2:
+    sys.stderr.write("usage: claw-fc-exec <firecracker> [args...]\n")
+    sys.exit(2)
+
+try:
+    ctypes.CDLL("libc.so.6", use_errno=True).prctl(PR_SET_MEMORY_MERGE, 1, 0, 0, 0)
+except Exception:
+    pass  # best-effort: old kernel / no libc — fall through to a normal launch
+
+os.execv(sys.argv[1], sys.argv[1:])

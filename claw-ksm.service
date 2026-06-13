@@ -1,0 +1,18 @@
+# claw-ksm.service — turn on Kernel Same-page Merging (KSM) for microVM memory dedup.
+# Every VM boots from the same Ubuntu base, so many guest pages are identical; KSM
+# merges them across firecracker processes into shared copy-on-write pages, cutting
+# host RAM use. Firecracker's memory is opted in per-process by claw-fc-exec.
+# Enabled by default on install; disable with `systemctl disable --now claw-ksm.service`.
+[Unit]
+Description=claw-vps Kernel Same-page Merging (microVM memory dedup)
+ConditionPathExists=/sys/kernel/mm/ksm/run
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Modest scan rate keeps ksmd CPU low; raise pages_to_scan for faster/denser merging.
+ExecStart=/bin/sh -c 'echo 100 > /sys/kernel/mm/ksm/pages_to_scan; echo 200 > /sys/kernel/mm/ksm/sleep_millisecs; echo 1 > /sys/kernel/mm/ksm/run'
+ExecStop=/bin/sh -c 'echo 0 > /sys/kernel/mm/ksm/run'
+
+[Install]
+WantedBy=multi-user.target
