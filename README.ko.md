@@ -91,6 +91,31 @@ sudo clawvps create bot1 --image openclaw --mem 2048
 
 ---
 
+## VM 생성
+
+```bash
+sudo clawvps create <name> [--image base] [--cpus 2] [--mem 1024] [--authkey-file <path>]
+```
+
+| 옵션 | 기본값 | 설명 |
+|---|---|---|
+| `<name>` | — (필수) | 소문자/숫자/하이픈, 영숫자로 시작, **최대 11자** (tap 디바이스 제한) |
+| `--image` | `base` | 복제할 golden image — `/var/lib/vms/images/<image>.ext4` (커스텀은 `clawvps build` 로 생성) |
+| `--cpus` | `2` | vCPU 개수 |
+| `--mem` | `1024` | 게스트 RAM, **MiB 단위** |
+| `--authkey-file` | — | Tailscale authkey 파일; `/etc/vps/ts-authkey` (mode 600)로 주입돼 첫 부팅 때 한 번 tailnet 조인에 쓰이고 삭제됨 |
+
+동작: 이미지를 VM의 rootfs로 sparse 복사하고, `10.42.0.10` 부터 다음 IP를 자동 할당(순차 증가 및 **단조** — VM을 destroy해도 IP를 재사용하지 않음)하며, hostname + networkd 설정을 주입한 뒤 systemd 슈퍼바이저로 부팅합니다.
+
+```bash
+sudo clawvps create myvm                          # base 이미지, 2 vCPU, 1024 MiB
+sudo clawvps create bot1 --image openclaw --mem 2048
+```
+
+base 이미지와 게스트 커널이 있어야 합니다 (`clawvps setup base` / `clawvps setup kernel`).
+
+---
+
 ## 일상 운영
 
 ```bash

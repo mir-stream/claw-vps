@@ -91,6 +91,31 @@ sudo clawvps create bot1 --image openclaw --mem 2048
 
 ---
 
+## Create a VM
+
+```bash
+sudo clawvps create <name> [--image base] [--cpus 2] [--mem 1024] [--authkey-file <path>]
+```
+
+| Option | Default | Notes |
+|---|---|---|
+| `<name>` | — (required) | lowercase letters/digits/hyphens, must start alnum, **max 11 chars** (tap-device limit) |
+| `--image` | `base` | golden image to clone — `/var/lib/vms/images/<image>.ext4` (build custom ones with `clawvps build`) |
+| `--cpus` | `2` | vCPU count |
+| `--mem` | `1024` | guest RAM in **MiB** |
+| `--authkey-file` | — | file holding a Tailscale authkey; injected as `/etc/vps/ts-authkey` (mode 600), used once on first boot to join the tailnet, then deleted |
+
+What it does: sparse-copies the image to the VM's rootfs, auto-allocates the next IP from `10.42.0.10` upward (sequential and **monotonic** — destroying a VM never recycles its IP), injects hostname + networkd config, and boots it under the systemd supervisor.
+
+```bash
+sudo clawvps create myvm                          # base image, 2 vCPU, 1024 MiB
+sudo clawvps create bot1 --image openclaw --mem 2048
+```
+
+Requires the base image and guest kernel (`clawvps setup base` / `clawvps setup kernel`).
+
+---
+
 ## Operations
 
 ```bash
