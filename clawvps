@@ -20,6 +20,12 @@ One-time host setup:
   clawvps setup kernel               build the guest kernel (compiles Linux; takes a while)
   clawvps setup base                 build the base golden image (debootstrap)
 
+Host tuning (memory overcommit):
+  clawvps tune [--vm-mem-high auto|<SIZE>] [--swap auto|<SIZE>|off] [--zswap on|off]
+                                cap all VMs' RAM (firecracker.slice MemoryHigh),
+                                add a host swapfile, and enable zswap — so guests
+                                swap before the host does. All default ON.
+
 Images (Dockerfile-based; requires docker):
   clawvps build <image> [-f <Dockerfile>] [--example]
                                 build a bootable image on top of claw-vps/base.
@@ -58,6 +64,47 @@ next_ip() {
 mac_for_ip() {  # 10.42.X.Y -> 06:00:0a:2a:XX:YY (locally administered)
   local IFS=. ; read -r a b c d <<<"$1"
   printf '06:00:%02x:%02x:%02x:%02x' "$a" "$b" "$c" "$d"
+}
+
+# ---- pure helpers for `clawvps tune` (no side effects; unit-tested) ----------
+# Reserve for the host kernel + userspace + firecracker overhead, so the VMs'
+# aggregate MemoryHigh leaves headroom for everything outside the slice.
+TUNE_HOST_RESERVE_MIB="${TUNE_HOST_RESERVE_MIB:-2048}"
+# Below this the auto MemoryHigh result is too small to be meaningful.
+TUNE_MIN_MEM_HIGH_MIB="${TUNE_MIN_MEM_HIGH_MIB:-512}"
+# Cap auto swap so we never carve out an absurd swapfile on a big-RAM host.
+TUNE_MAX_SWAP_MIB="${TUNE_MAX_SWAP_MIB:-16384}"
+
+# auto_mem_high_mib <total-mib> -> MiB for the VM slice (total - host reserve).
+# Prints nothing (and returns 1) when the result is <= 0 or below the floor, so
+# the caller can warn and skip rather than set a broken value.
+auto_mem_high_mib() {
+  local total="${1:?}" v
+  v=$(( total - TUNE_HOST_RESERVE_MIB ))
+  if [ "$v" -lt "$TUNE_MIN_MEM_HIGH_MIB" ]; then return 1; fi
+  echo "$v"
+}
+
+# auto_swap_mib <total-mib> -> swap size in MiB = total RAM, capped at the max.
+auto_swap_mib() {
+  local total="${1:?}"
+  if [ "$total" -gt "$TUNE_MAX_SWAP_MIB" ]; then echo "$TUNE_MAX_SWAP_MIB"; else echo "$total"; fi
+}
+
+# normalize_size_mib <arg> -> integer MiB. Accepts a bare integer (MiB) or a
+# systemd-style suffix: K/M/G/T (binary, MiB-rounded). Returns 1 on garbage.
+normalize_size_mib() {
+  local in="${1:?}" num unit
+  num="${in%[KkMmGgTt]}"
+  unit="${in#"$num"}"
+  case "$num" in ''|*[!0-9]*) return 1;; esac
+  case "$unit" in
+    ''|M|m) echo "$num";;
+    K|k)    echo $(( num / 1024 ));;
+    G|g)    echo $(( num * 1024 ));;
+    T|t)    echo $(( num * 1024 * 1024 ));;
+    *)      return 1;;
+  esac
 }
 
 # True once THIS node's 10.42.0.0/16 route is approved & active in the tailnet.
@@ -148,6 +195,174 @@ cmd_init() {
 
   echo ""
   echo "Next: sudo clawvps setup kernel && sudo clawvps setup base"
+}
+
+# Total physical RAM in MiB (from /proc/meminfo MemTotal, which is in KiB).
+_total_ram_mib() { awk '/^MemTotal:/ {print int($2/1024)}' /proc/meminfo; }
+
+# clawvps tune — make memory overcommit safe & host-prioritized using three
+# standard Linux mechanisms (no custom daemons): a firecracker.slice MemoryHigh
+# soft cap, a host swapfile, and zswap. All default ON; idempotent; persists
+# across reboot via systemd units, /etc/fstab, and a slice drop-in (never GRUB).
+cmd_tune() {
+  need_root
+  local mem_high_arg="auto" swap_arg="auto" zswap_arg="on"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --vm-mem-high) mem_high_arg="${2:?missing value for --vm-mem-high}"; shift 2;;
+      --swap)        swap_arg="${2:?missing value for --swap}"; shift 2;;
+      --zswap)       zswap_arg="${2:?missing value for --zswap}"; shift 2;;
+      *) die "unknown option: $1  (usage: clawvps tune [--vm-mem-high auto|<SIZE>] [--swap auto|<SIZE>|off] [--zswap on|off])";;
+    esac
+  done
+  case "$zswap_arg" in on|off) ;; *) die "--zswap must be 'on' or 'off': $zswap_arg";; esac
+
+  local total; total="$(_total_ram_mib)"
+  if [ -z "$total" ] || [ "$total" -le 0 ]; then
+    die "could not read total RAM from /proc/meminfo"
+  fi
+  echo "claw-vps host tuning (total RAM: ${total} MiB)"
+
+  # ---- [1/3] firecracker.slice MemoryHigh soft cap --------------------------
+  echo ""
+  echo "[1/3] VM memory soft cap (firecracker.slice MemoryHigh)"
+  local mem_high_mib="" mem_high_summary="skipped"
+  if [ "$mem_high_arg" = "auto" ]; then
+    if mem_high_mib="$(auto_mem_high_mib "$total")"; then
+      echo "      auto = total (${total}M) − ${TUNE_HOST_RESERVE_MIB}M host reserve = ${mem_high_mib}M"
+    else
+      mem_high_mib=""
+      echo "      ! host has too little RAM (${total}M) for an auto cap leaving ${TUNE_HOST_RESERVE_MIB}M for the host." >&2
+      echo "      → skipping MemoryHigh — set one explicitly: clawvps tune --vm-mem-high <SIZE>" >&2
+    fi
+  else
+    mem_high_mib="$(normalize_size_mib "$mem_high_arg")" || die "invalid --vm-mem-high size: $mem_high_arg"
+    [ "$mem_high_mib" -ge 1 ] || die "--vm-mem-high resolves to ${mem_high_mib}M (too small): $mem_high_arg"
+    echo "      explicit = ${mem_high_mib}M"
+  fi
+  if [ -n "$mem_high_mib" ]; then
+    mkdir -p /etc/systemd/system/firecracker.slice.d
+    cat > /etc/systemd/system/firecracker.slice.d/10-memoryhigh.conf <<EOF
+# Written by 'clawvps tune'. Aggregate soft cap for all firecracker@<name> VMs.
+[Slice]
+MemoryAccounting=yes
+MemoryHigh=${mem_high_mib}M
+EOF
+    systemctl daemon-reload
+    echo "      ✓ MemoryHigh=${mem_high_mib}M applied (drop-in + daemon-reload)"
+    echo "      • applies to VMs started after this change — restart running VMs (clawvps restart <name>) to pick up the cap"
+    mem_high_summary="${mem_high_mib}M"
+  fi
+
+  # ---- [2/3] host swapfile --------------------------------------------------
+  echo ""
+  echo "[2/3] Host swapfile (gives MemoryHigh somewhere to push cold pages)"
+  local swap_summary="off"
+  if [ "$swap_arg" = "off" ]; then
+    echo "      • skipped (--swap off)"
+  else
+    local swap_mib
+    if [ "$swap_arg" = "auto" ]; then
+      swap_mib="$(auto_swap_mib "$total")"
+      echo "      auto = total RAM capped at ${TUNE_MAX_SWAP_MIB}M = ${swap_mib}M"
+    else
+      swap_mib="$(normalize_size_mib "$swap_arg")" || die "invalid --swap size: $swap_arg"
+      [ "$swap_mib" -ge 1 ] || die "--swap resolves to ${swap_mib}M (too small): $swap_arg"
+      echo "      explicit = ${swap_mib}M"
+    fi
+    if [ -e /swapfile ]; then
+      # Pre-existing file: never recreate/resize. Verify it's a *valid, active*
+      # swap before persisting — otherwise we'd land an fstab entry that fails
+      # 'swapon -a' at boot. Activate it (ok if already active), then confirm.
+      echo "      • /swapfile already exists — leaving it in place (not recreating/resizing)"
+      swapon /swapfile 2>/dev/null || true
+      if ! swapon --show=NAME --noheadings 2>/dev/null | grep -qx /swapfile; then
+        die "/swapfile exists but is not a valid/active swap — refusing to persist it; remove it (rm -f /swapfile) or use --swap off"
+      fi
+      echo "      ✓ existing /swapfile is active"
+      swap_summary="(existing) /swapfile"
+    else
+      echo "      creating /swapfile (${swap_mib}M)…"
+      if ! fallocate -l "${swap_mib}M" /swapfile 2>/dev/null; then
+        echo "      (fallocate unsupported on this fs — falling back to dd)"
+        dd if=/dev/zero of=/swapfile bs=1M count="$swap_mib" status=none
+      fi
+      chmod 600 /swapfile
+      # Guard mkswap/swapon: on failure, remove the partial file so a re-run
+      # starts clean and never persists a landmine in fstab.
+      if ! mkswap /swapfile >/dev/null || ! swapon /swapfile; then
+        rm -f /swapfile
+        die "swap setup failed on this filesystem — /swapfile removed; try --swap off or a different fs"
+      fi
+      echo "      ✓ swapfile active"
+      swap_summary="${swap_mib}M (/swapfile)"
+    fi
+    # Persist across reboot via fstab (idempotent) — only reached once swap is
+    # confirmed active above.
+    if ! grep -qE '^[[:space:]]*/swapfile[[:space:]]' /etc/fstab 2>/dev/null; then
+      echo "/swapfile none swap sw 0 0" >> /etc/fstab
+      echo "      ✓ /etc/fstab entry added"
+    else
+      echo "      • /etc/fstab already has a /swapfile entry"
+    fi
+  fi
+
+  # ---- [3/3] zswap (compressed-RAM cache in front of swap) ------------------
+  echo ""
+  echo "[3/3] zswap (compress reclaimed pages in RAM before hitting the SSD)"
+  local zswap_summary="off"
+  if [ "$zswap_arg" = "off" ]; then
+    echo "      • skipped (--zswap off)"
+  else
+    if [ ! -d /sys/module/zswap ]; then
+      echo "      ! this kernel has no zswap module (/sys/module/zswap absent) — skipping." >&2
+      zswap_summary="unavailable"
+    else
+      # Runtime enable now; persist via a oneshot unit re-applied on boot (no GRUB).
+      _zswap_apply
+      cat > /etc/systemd/system/claw-zswap.service <<'EOF'
+# Written by 'clawvps tune'. Re-applies zswap sysfs settings on every boot
+# (zswap reset to defaults at boot since we don't touch the kernel cmdline).
+[Unit]
+Description=claw-vps: enable zswap (compressed swap cache)
+DefaultDependencies=no
+After=sysinit.target
+Before=swap.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/clawvps zswap-apply
+
+[Install]
+WantedBy=sysinit.target
+EOF
+      systemctl daemon-reload
+      systemctl enable claw-zswap.service >/dev/null 2>&1 || true
+      echo "      ✓ zswap enabled now + claw-zswap.service enabled for boot"
+      zswap_summary="on"
+    fi
+  fi
+
+  # ---- summary --------------------------------------------------------------
+  echo ""
+  echo "Done. VM memory soft cap: ${mem_high_summary} | swap: ${swap_summary} | zswap: ${zswap_summary}"
+  echo "VMs now overcommit safely — under pressure their pages swap (via zswap) before the host's."
+}
+
+# Apply zswap settings to sysfs. Each write is guarded because params differ
+# across kernels. Called at runtime by cmd_tune and on boot by claw-zswap.service.
+_zswap_apply() {
+  [ -d /sys/module/zswap ] || return 0
+  if [ -w /sys/module/zswap/parameters/enabled ]; then
+    echo Y > /sys/module/zswap/parameters/enabled 2>/dev/null || true
+  fi
+  if [ -w /sys/module/zswap/parameters/compressor ]; then
+    echo zstd > /sys/module/zswap/parameters/compressor 2>/dev/null || true
+  fi
+  if [ -w /sys/module/zswap/parameters/max_pool_percent ]; then
+    echo 20 > /sys/module/zswap/parameters/max_pool_percent 2>/dev/null || true
+  fi
 }
 
 # A colorful heads-up before a long foundation build, so the user knows it is
@@ -510,6 +725,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   set -euo pipefail
   case "${1:-}" in
     init)     shift; cmd_init "$@";;
+    tune)     shift; cmd_tune "$@";;
     setup)    shift; cmd_setup "$@";;
     build)    shift; cmd_build "$@";;
     create)   shift; cmd_create "$@";;
@@ -522,6 +738,7 @@ if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
     status)   shift; cmd_status "$@";;
     logs)     shift; cmd_logs "$@";;
     version|--version|-V) cmd_version;;
+    zswap-apply) shift; _zswap_apply;;
     net-up)   shift; cmd_net_up "$@";;
     net-down) shift; cmd_net_down "$@";;
     send-shutdown) shift; cmd_send_shutdown "$@";;

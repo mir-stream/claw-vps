@@ -35,6 +35,7 @@ build_one() {
   install -D -m 755 "${SRC}/build-base.sh"    "${stage}/usr/share/claw-vps/build-base.sh"
   install -D -m 644 "${SRC}/examples/openclaw.Dockerfile" "${stage}/usr/share/claw-vps/examples/openclaw.Dockerfile"
   install -D -m 644 "${SRC}/firecracker@.service"  "${stage}/lib/systemd/system/firecracker@.service"
+  install -D -m 644 "${SRC}/firecracker.slice"     "${stage}/lib/systemd/system/firecracker.slice"
   install -D -m 644 "${SRC}/vps-network.service"   "${stage}/lib/systemd/system/vps-network.service"
   # needrestart override: keep apt upgrades from bouncing running VMs (see file header).
   install -D -m 644 "${SRC}/needrestart-claw-vps.conf" "${stage}/etc/needrestart/conf.d/claw-vps.conf"

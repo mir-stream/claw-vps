@@ -100,3 +100,57 @@ setup() {
   run _await_route 0 0
   [ "$status" -eq 0 ]
 }
+
+# ---- clawvps tune pure helpers ---------------------------------------------
+
+@test "auto_mem_high_mib: total minus the 2048 MiB host reserve" {
+  run auto_mem_high_mib 16384
+  [ "$status" -eq 0 ]
+  [ "$output" -eq 14336 ]   # 16384 - 2048
+}
+
+@test "auto_mem_high_mib: fails (no output) when result is below the floor" {
+  run auto_mem_high_mib 2048   # 2048 - 2048 = 0, under TUNE_MIN_MEM_HIGH_MIB
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+  run auto_mem_high_mib 2200   # 152 MiB, still below the 512 floor
+  [ "$status" -eq 1 ]
+  [ -z "$output" ]
+}
+
+@test "auto_swap_mib: equals total RAM below the cap" {
+  run auto_swap_mib 8192
+  [ "$output" -eq 8192 ]
+}
+
+@test "auto_swap_mib: caps at 16384 MiB on big-RAM hosts" {
+  run auto_swap_mib 65536
+  [ "$output" -eq 16384 ]
+  run auto_swap_mib 16384   # exactly at the cap stays put
+  [ "$output" -eq 16384 ]
+}
+
+@test "normalize_size_mib: bare integer is treated as MiB" {
+  run normalize_size_mib 8000
+  [ "$output" -eq 8000 ]
+}
+
+@test "normalize_size_mib: G/M/K/T suffixes (binary, MiB-rounded)" {
+  run normalize_size_mib 12G
+  [ "$output" -eq 12288 ]
+  run normalize_size_mib 8000M
+  [ "$output" -eq 8000 ]
+  run normalize_size_mib 2048K
+  [ "$output" -eq 2 ]
+  run normalize_size_mib 1T
+  [ "$output" -eq 1048576 ]
+}
+
+@test "normalize_size_mib: rejects garbage" {
+  run normalize_size_mib 12X
+  [ "$status" -eq 1 ]
+  run normalize_size_mib abc
+  [ "$status" -eq 1 ]
+  run normalize_size_mib ""
+  [ "$status" -ne 0 ]
+}

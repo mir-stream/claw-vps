@@ -1,0 +1,12 @@
+# firecracker.slice — aggregate resource slice for all VM units.
+# Every firecracker@<name>.service joins this slice (Slice=firecracker.slice),
+# so a host-wide MemoryHigh= soft cap applied here makes the kernel reclaim/swap
+# the VMs' pages first under memory pressure — protecting the host's own RAM.
+# The host-specific MemoryHigh= value lives in a runtime drop-in written by
+# `clawvps tune` (/etc/systemd/system/firecracker.slice.d/10-memoryhigh.conf),
+# not here, so it adapts to each host's total RAM.
+[Unit]
+Description=Firecracker microVMs slice (aggregate memory cap)
+
+[Slice]
+MemoryAccounting=yes
