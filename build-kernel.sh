@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # build-kernel.sh — build the Firecracker guest kernel (invoked as: clawvps setup kernel)
 # The Firecracker CI kernels lack TUN/nf_tables, which breaks Tailscale and
-# iptables inside guests. This builds the Amazon Linux microVM kernel from the CI
-# config with those enabled.
+# iptables inside guests. This builds the Amazon Linux microVM kernel source using
+# the Firecracker CI config as a base, with those options enabled.
 # Works on both aarch64 and x86_64 (auto-detected).
 # Output: installed to /var/lib/vms/kernel-claw (plus a copy in ~/fc/kernel-claw).
 set -euo pipefail
