@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.7.1 (2026-06-13)
+- Fix `clawvps setup base` aborting partway through the chroot config step. The
+  block used an unquoted heredoc, so backticks inside its comments
+  (`` `clawvps create` ``, `` `systemctl --now` ``) ran as command substitution
+  on the host: `clawvps create` errored and `systemctl --now` dumped host unit
+  names into the heredoc, which the chroot then tried to execute
+  (`proc-sys-fs-binfmt_misc.automount: command not found`), failing the build
+  under `set -e`. The heredoc is now quoted (`<<'CHROOT'`); `SUITE` is injected
+  via `env` so it still expands at runtime.
+- Silence the `perl: warning: Setting locale failed` noise during the base build
+  by forcing `LC_ALL=C`/`LANG=C` inside the chroot.
+
 ## 0.7.0 (2026-06-12)
 - `clawvps init` now guards its hard prerequisite: if Tailscale is missing it
   aborts with install instructions, and if Tailscale is installed but logged out
