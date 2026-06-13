@@ -8,61 +8,75 @@ description: Cut and publish a new claw-vps release — verify the test suite (u
 claw-vps is distributed as `.deb` packages attached to GitHub Releases (there is no
 apt repo). Users install with `sudo apt install ./claw-vps_<ver>_<arch>.deb`.
 
+## Build/test host
+
+The deb build and the E2E suite both run on a **separate Linux host you SSH to** —
+`dpkg-deb` and the Firecracker microVM tests do not run on macOS. The host can be
+**any architecture**: `make-deb.sh` downloads both the arm64 and amd64 firecracker
+binaries, so a single Linux host of either arch produces **both** debs.
+
+Set `HOST` to that host before running the steps below. The host must have:
+
+- SSH reachability, and **root or passwordless `sudo`** (E2E needs root: firecracker,
+  loop mounts, systemd). Build (`make-deb.sh`) and lint/unit need no root.
+- `bats` + `shellcheck` installed (`sudo apt install -y bats shellcheck`) — the gate.
+- Base image + guest kernel present (`clawvps images`; else `sudo clawvps setup base|kernel`).
+- The host's own SSH key registered for host→guest SSH (see Step 0).
+
+> The concrete address/credentials are environment-specific and change over time —
+> keep them OUT of this file (it's a public repo); just set `HOST` before you start.
+
 ## Context / prerequisites
 
 - **Repo:** `mir-stream/claw-vps` (releases are public).
-- **deb build needs Linux** — `dpkg-deb` does not run on macOS. Build on an
-  aarch64 Linux host you can ssh to. Current host: `root@100.106.44.11`
-  (homelab M4 Mac mini, Ubuntu aarch64, reachable over Tailscale). One
-  `make-deb.sh` run produces **both** `arm64` and `amd64` debs (it downloads the
-  matching firecracker binaries), so a single aarch64 host covers both arches.
-- **`gh` CLI** must be authenticated locally as a user with push/release rights
-  (`gh auth status` → account `mir-stream`).
-- The build host may run **production VMs** (e.g. `claw1`). Building debs does
-  **not** touch them. Do **not** `apt install` on the build host as part of a
-  release — releasing only publishes artifacts.
-- **Tests gate the release.** The same aarch64 host doubles as the E2E host. The
-  bats suite under `tests/` must be green (unit + E2E) before you bump a version
-  — see Step 0. E2E boots throwaway microVMs; it does **not** touch `claw1`.
+- **`gh` CLI** must be authenticated locally with push/release rights to
+  `mir-stream/claw-vps` (`gh auth status`).
+- The build host may also run **production VMs**. Building debs does **not** touch them
+  (and `make-deb.sh` needs no root). Do **not** `apt install` the freshly built deb on
+  the build host as part of a release — releasing only publishes artifacts.
+- **Tests gate the release.** The same host doubles as the E2E host. `unit` + `e2e`
+  must be green before you bump a version (Step 0). E2E boots throwaway microVMs and
+  does **not** touch production VMs.
 
 ## Steps
 
-Set the version once:
+Set the version + host once:
 
 ```bash
-VER=0.5.2                      # the new version
-HOST=root@100.106.44.11        # aarch64 Linux build host
+VER=0.8.0                 # the new version
+HOST=user@your-host       # Linux build/E2E host (root or passwordless sudo)
 ```
 
 ### 0. Gate — the test suite must pass (including E2E)
 
-**No release proceeds unless `unit` + `e2e` are green on the build host.** E2E
-actually boots throwaway microVMs and asserts boot/SSH/lifecycle/isolation, so it
-is the only layer that proves "it really works on a real host." It creates and
-destroys its own `bt*`/`bia*`/`m*` VMs and never touches production VMs.
+**No release proceeds unless `unit` + `e2e` are green on the host.** E2E actually boots
+throwaway microVMs and asserts boot/SSH/lifecycle/isolation, so it is the only layer
+that proves "it really works on a real host." It creates and destroys its own
+`bt*`/`bia*`/`m*` VMs and never touches production VMs.
 
-Sync the working tree to the host and run the layers:
+Sync the working tree to the host and run the layers. A *relative* `claw-vps-src` dest
+lands in the SSH user's home, so this works whether `HOST` is `root@…` or `user@…`:
 
 ```bash
-rsync -az --delete --exclude='.git' --exclude='packaging/dist' ./ "$HOST:/root/claw-vps-src/"
-ssh "$HOST" "cd /root/claw-vps-src && chmod +x clawvps && tests/run-tests.sh unit && tests/run-tests.sh e2e"
+rsync -az --delete --exclude='.git' --exclude='packaging/dist' --exclude='.idea' ./ "$HOST:claw-vps-src/"
+ssh "$HOST" "cd claw-vps-src && chmod +x clawvps tests/run-tests.sh && tests/run-tests.sh lint && tests/run-tests.sh unit && sudo tests/run-tests.sh e2e"
 ```
 
-Both commands must exit 0. If any test fails or is unexpectedly **skipped**
+`unit` + `e2e` must exit 0. If any test fails or is unexpectedly **skipped**
 (a skip means a prerequisite is missing, not that it passed), **stop — do not
 release.** One-time host setup if E2E skips:
 
-- `apt install -y bats` (and `shellcheck` for lint).
-- base image + guest kernel present (`clawvps images`); else `clawvps setup base|kernel`.
-- the **host's own** root SSH key must be registered so host→guest SSH works:
-  `ssh-keygen -t ed25519 -N "" -f /root/.ssh/id_ed25519`, then append
-  `/root/.ssh/id_ed25519.pub` to `/var/lib/vms/authorized_keys` (or `clawvps init`).
+- `sudo apt install -y bats shellcheck`.
+- base image + guest kernel present (`clawvps images`); else `sudo clawvps setup base|kernel`.
+- the **host's own** SSH key must be registered so host→guest SSH works:
+  `ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519` (use `/root/.ssh/…` if `HOST` is
+  root), then append the `.pub` to `/var/lib/vms/authorized_keys` (or `sudo clawvps init`).
   Without it every reachability/isolation test times out.
 - `LAN_TARGET=<a private IP the host can reach, e.g. its gateway>` makes the
   VM→home-LAN block assertion run live instead of skipping (optional but preferred).
 
 Lint (`tests/run-tests.sh lint`) is advisory: it currently surfaces only
-pre-existing style infos (SC2012/2006/2086) and exits non-zero, so it is **not**
+pre-existing style infos (SC2012/SC2119/SC2120) and exits non-zero, so it is **not**
 part of the hard gate — run it, read it, but it does not block the release.
 
 ### 1. Bump version + changelog, commit, push
@@ -86,12 +100,12 @@ git push origin "v$VER"
 
 ### 3. Build both debs on the Linux host
 
-Sync the working tree (which must equal the committed state) and build:
+Sync the working tree (which must equal the committed state) and build (no root needed):
 
 ```bash
-rsync -az --delete --exclude='.git' --exclude='packaging/dist' ./ "$HOST:/root/claw-vps-src/"
-ssh "$HOST" "cd /root/claw-vps-src && VERSION=$VER bash packaging/make-deb.sh"
-ssh "$HOST" "sha256sum /root/claw-vps-src/packaging/dist/claw-vps_${VER}_*.deb"
+rsync -az --delete --exclude='.git' --exclude='packaging/dist' --exclude='.idea' ./ "$HOST:claw-vps-src/"
+ssh "$HOST" "cd claw-vps-src && VERSION=$VER bash packaging/make-deb.sh"
+ssh "$HOST" "sha256sum claw-vps-src/packaging/dist/claw-vps_${VER}_*.deb"
 ```
 
 Output: `packaging/dist/claw-vps_<VER>_arm64.deb` and `..._amd64.deb`.
@@ -101,8 +115,8 @@ Output: `packaging/dist/claw-vps_<VER>_arm64.deb` and `..._amd64.deb`.
 
 ```bash
 mkdir -p "$TMPDIR/claw-rel"
-scp "$HOST:/root/claw-vps-src/packaging/dist/claw-vps_${VER}_arm64.deb" \
-    "$HOST:/root/claw-vps-src/packaging/dist/claw-vps_${VER}_amd64.deb" "$TMPDIR/claw-rel/"
+scp "$HOST:claw-vps-src/packaging/dist/claw-vps_${VER}_arm64.deb" \
+    "$HOST:claw-vps-src/packaging/dist/claw-vps_${VER}_amd64.deb" "$TMPDIR/claw-rel/"
 ( cd "$TMPDIR/claw-rel" && shasum -a 256 *.deb )   # must match the host sha256sum
 ```
 
@@ -125,7 +139,7 @@ gh release view "v$VER" --repo mir-stream/claw-vps --json url,assets \
 
 ```bash
 rm -rf "$TMPDIR/claw-rel"
-ssh "$HOST" "rm -rf /root/claw-vps-src"
+ssh "$HOST" "rm -rf claw-vps-src"
 ```
 
 ## Notes
