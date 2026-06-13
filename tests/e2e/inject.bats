@@ -36,6 +36,9 @@ teardown() {
   run sudo grep -q '"mem_size_mib": 777' "$cfg";   [ "$status" -eq 0 ]
   run sudo grep -q "\"host_dev_name\": \"tap-$NAME\"" "$cfg"; [ "$status" -eq 0 ]
 
+  # Balloon device with free page reporting so guest-freed RAM returns to the host.
+  run sudo grep -q '"free_page_reporting": true' "$cfg"; [ "$status" -eq 0 ]
+
   # MAC must equal what the real helper computes for the allocated IP.
   local expected_mac
   expected_mac="$(mac_for_ip "$ip")"

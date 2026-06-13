@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 (unreleased)
+- Every VM now boots with a virtio-balloon device with **free page reporting**
+  enabled (`free_page_reporting`, production-ready since Firecracker v1.14.0; our
+  guest kernel has `CONFIG_PAGE_REPORTING=y`). The guest proactively reports its
+  freed pages to the host, which drops them from the VM's RSS — so memory a guest
+  allocated and later freed is returned to the host automatically, with no host-side
+  control loop or daemon. The balloon is not inflated (`amount_mib: 0`), so there is
+  no CPU-intensive target-chasing; `deflate_on_oom` is on as a safety net.
+
 ## 0.7.1 (2026-06-13)
 - Fix `clawvps setup base` aborting partway through the chroot config step. The
   block used an unquoted heredoc, so backticks inside its comments
