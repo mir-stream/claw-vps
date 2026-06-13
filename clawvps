@@ -580,6 +580,7 @@ EOF
     }
   ],
   "machine-config": { "vcpu_count": ${cpus}, "mem_size_mib": ${mem} },
+  "balloon": { "amount_mib": 0, "deflate_on_oom": true, "free_page_reporting": true },
   "network-interfaces": [
     { "iface_id": "eth0", "guest_mac": "${mac}", "host_dev_name": "tap-${name}" }
   ]
