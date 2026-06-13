@@ -30,7 +30,7 @@ build_one() {
 
   # --- files ---
   install -D -m 755 "${SRC}/clawvps"               "${stage}/usr/bin/clawvps"
-  install -D -m 755 "${SRC}/claw-fc-exec"     "${stage}/usr/sbin/claw-fc-exec"
+  install -D -m 755 "${SRC}/claw-fc-exec"          "${stage}/usr/sbin/claw-fc-exec"
   install -D -m 755 "${SRC}/setup-network.sh" "${stage}/usr/sbin/vps-setup-network"
   install -D -m 755 "${SRC}/build-kernel.sh"  "${stage}/usr/share/claw-vps/build-kernel.sh"
   install -D -m 755 "${SRC}/build-base.sh"    "${stage}/usr/share/claw-vps/build-base.sh"
@@ -107,6 +107,7 @@ set -e
 # Running VMs (firecracker@*) are deliberately left alone.
 if [ "$1" = "remove" ]; then
   systemctl disable --now vps-network.service || true
+  systemctl disable --now claw-ksm.service || true
 fi
 EOF
   chmod 755 "${stage}/DEBIAN/prerm"

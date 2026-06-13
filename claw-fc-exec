@@ -24,4 +24,8 @@ try:
 except Exception:
     pass  # best-effort: old kernel / no libc — fall through to a normal launch
 
-os.execv(sys.argv[1], sys.argv[1:])
+try:
+    os.execv(sys.argv[1], sys.argv[1:])
+except OSError as exc:
+    sys.stderr.write("claw-fc-exec: cannot exec %s: %s\n" % (sys.argv[1], exc))
+    sys.exit(127)
